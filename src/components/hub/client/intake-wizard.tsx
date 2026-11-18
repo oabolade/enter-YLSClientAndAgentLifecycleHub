@@ -15,12 +15,8 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { ChecklistEditor } from "@/components/hub/client/checklist-editor";
-import { LanguageSwitcher } from "@/components/language-switcher";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { fallbackLng, normalizeLanguage } from "@/i18n/config";
 import {
   LINES,
   REQUEST_TYPES,
@@ -30,13 +26,7 @@ import {
 } from "@/lib/hub/checklists";
 import { useHub } from "@/lib/hub/hub-context";
 import { docLabel, lineLabel, requestDesc, requestLabel } from "@/lib/hub/labels";
-import type {
-  LangCode,
-  LineId,
-  RequestTypeId,
-  Submission,
-  SubmissionItem,
-} from "@/lib/hub/types";
+import type { LineId, RequestTypeId, Submission, SubmissionItem } from "@/lib/hub/types";
 import { cn } from "@/lib/utils";
 
 const LINE_ICONS: Record<LineId, LucideIcon> = {
@@ -48,14 +38,14 @@ const LINE_ICONS: Record<LineId, LucideIcon> = {
 };
 
 export const IntakeWizard = () => {
-  const { personaId, resumeSubmissionId, intakePreset, submissions } = useHub();
+  const { currentClient, resumeSubmissionId, intakePreset, submissions } = useHub();
   const { setResumeSubmissionId, setIntakePreset } = useHub();
   const [nonce, setNonce] = useState(0);
   const resume = submissions.find((entry) => entry.id === resumeSubmissionId) ?? null;
 
   return (
     <WizardForm
-      key={`${personaId}:${resumeSubmissionId ?? ""}:${intakePreset ?? ""}:${nonce}`}
+      key={`${currentClient?.id ?? ""}:${resumeSubmissionId ?? ""}:${intakePreset ?? ""}:${nonce}`}
       resume={resume}
       presetLine={intakePreset}
       onReset={() => {
@@ -74,16 +64,13 @@ type WizardFormProps = {
 };
 
 const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
-  const { t, i18n } = useTranslation();
-  const { currentClient, registerGuest, submitIntake, updateSubmissionItems, setClientTab } =
-    useHub();
+  const { t } = useTranslation();
+  const { currentClient, submitIntake, updateSubmissionItems, setClientTab } = useHub();
 
   const [step, setStep] = useState(resume ? 2 : presetLine ? 1 : 0);
   const [line, setLine] = useState<LineId | null>(presetLine);
   const [requestType, setRequestType] = useState<RequestTypeId | null>(null);
   const [items, setItems] = useState<SubmissionItem[]>(resume ? resume.items : []);
-  const [contact, setContact] = useState({ fullName: "", phone: "", email: "" });
-  const [contactError, setContactError] = useState(false);
   const [result, setResult] = useState<{ id: string; complete: boolean } | null>(null);
 
   const rebuild = (nextLine: LineId | null, nextRequest: RequestTypeId | null) => {
@@ -105,7 +92,7 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
     <ChecklistEditor
       items={items}
       onChange={setItems}
-      clientName={currentClient?.fullName ?? contact.fullName}
+      clientName={currentClient?.fullName ?? ""}
       onBusyChange={setChecking}
     />
   );
@@ -116,23 +103,16 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
   };
 
   const submit = async () => {
-    if (!line || !requestType || saving) return;
-    if (
-      !currentClient &&
-      (!contact.fullName.trim() || !contact.phone.trim() || !contact.email.trim())
-    ) {
-      setContactError(true);
-      return;
-    }
+    // The intake is filed under the signed-in client's own record.
+    if (!line || !requestType || saving || !currentClient) return;
     setSaving(true);
     try {
-      let client = currentClient;
-      if (!client) {
-        const language = (normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ??
-          fallbackLng) as LangCode;
-        client = await registerGuest({ ...contact, preferredLanguage: language });
-      }
-      const submission = await submitIntake({ clientId: client.id, line, requestType, items });
+      const submission = await submitIntake({
+        clientId: currentClient.id,
+        line,
+        requestType,
+        items,
+      });
       setResult({ id: submission.id, complete: progress.missing.length === 0 });
     } catch (error) {
       saveFailed(error);
@@ -357,47 +337,6 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
                 ? t("intake.missingWarning", { count: progress.missing.length })
                 : t("intake.allSet")}
             </p>
-
-            {!currentClient ? (
-              <div className="space-y-3 rounded-xl border p-4">
-                <p className="text-sm font-semibold">{t("intake.guestTitle")}</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="guest-name">{t("intake.guestName")}</Label>
-                    <Input
-                      id="guest-name"
-                      value={contact.fullName}
-                      onChange={(event) => setContact({ ...contact, fullName: event.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="guest-phone">{t("intake.guestPhone")}</Label>
-                    <Input
-                      id="guest-phone"
-                      type="tel"
-                      value={contact.phone}
-                      onChange={(event) => setContact({ ...contact, phone: event.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="guest-email">{t("intake.guestEmail")}</Label>
-                    <Input
-                      id="guest-email"
-                      type="email"
-                      value={contact.email}
-                      onChange={(event) => setContact({ ...contact, email: event.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>{t("intake.guestLanguage")}</Label>
-                    <LanguageSwitcher className="w-full" />
-                  </div>
-                </div>
-                {contactError ? (
-                  <p className="text-sm font-medium text-destructive">{t("intake.guestRequired")}</p>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         ) : null}
 

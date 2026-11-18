@@ -128,6 +128,16 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceKey) throw new HttpError(500, "Database access is not configured");
 
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    // Checked before any record is read or any AI call is made.
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const { data: account, error: accountError } = token
+      ? await supabase.auth.getUser(token)
+      : { data: { user: null }, error: null };
+    const user = accountError ? null : account.user;
+    if (!user) return json({ error: { message: "Sign in to see suggestions." } }, 401);
+
     const body = await req.json().catch(() => null);
     const clientId = typeof body?.clientId === "string" ? body.clientId : "";
     const language = typeof body?.language === "string" ? body.language : "";
@@ -135,7 +145,26 @@ Deno.serve(async (req) => {
       return json({ error: { message: "A valid client and language are required." } }, 400);
     }
 
-    const supabase = createClient(supabaseUrl, serviceKey);
+    // A client may only ask about their own record; staff may ask about any client.
+    const { data: owned, error: ownedError } = await supabase
+      .from("yls_clients")
+      .select("id")
+      .eq("id", clientId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (ownedError) throw new HttpError(500, "Access could not be checked");
+    if (!owned) {
+      const email = user.email_confirmed_at ? (user.email ?? "").toLowerCase() : "";
+      const { data: staff, error: staffError } = email
+        ? await supabase.from("yls_staff").select("email").eq("email", email).maybeSingle()
+        : { data: null, error: null };
+      if (staffError) throw new HttpError(500, "Access could not be checked");
+      if (!staff) {
+        console.error("Nudge refused: client record belongs to another account");
+        return json({ error: { message: "This client record belongs to another account." } }, 403);
+      }
+    }
+
     const { data: policies, error } = await supabase
       .from("yls_policies")
       .select("line, carrier, status, renewal_date")

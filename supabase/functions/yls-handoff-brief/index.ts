@@ -2,6 +2,8 @@
 // licensed agent. Facts such as name, phone and policy number are added by the app, not
 // by the model.
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -91,10 +93,26 @@ async function generate(body: Record<string, unknown>): Promise<string> {
     .trim();
 }
 
+/** The signed-in account making the request, or null. The public key alone is not an account. */
+async function signedInUser(req: Request) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceKey) throw new HttpError(500, "Account check is not configured");
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+  const { data, error } = await createClient(supabaseUrl, serviceKey).auth.getUser(token);
+  return error ? null : data.user;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    // Checked before any AI call, so the link alone cannot spend AI credits.
+    if (!(await signedInUser(req))) {
+      return json({ error: { message: "Sign in to request a handoff." } }, 401);
+    }
+
     const body = await req.json().catch(() => null);
     const message = typeof body?.message === "string" ? body.message.trim() : "";
     if (!message || message.length > 2000) {

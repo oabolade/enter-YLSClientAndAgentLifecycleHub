@@ -1,0 +1,131 @@
+-- Sign-in and private access for the YLS hub.
+-- Before: anyone with the link could read every record and add records.
+-- After: only signed-in accounts get in. A client reads and changes only their own
+-- records; accounts whose confirmed email is on the staff list see everything.
+-- No existing rows are changed or removed.
+
+-- 1. Staff list. No policies and no grants: it is readable only through the access
+--    function below and by the backend, never directly from the browser.
+create table public.yls_staff (
+  email text primary key check (email = lower(email) and char_length(email) between 3 and 200),
+  added_at timestamptz not null default now()
+);
+alter table public.yls_staff enable row level security;
+revoke all on public.yls_staff from anon, authenticated;
+
+-- 2. Each client record can belong to one sign-in account.
+alter table public.yls_clients
+  add column user_id uuid unique references auth.users(id) on delete set null;
+
+-- 3. Access helpers used by the rules below.
+create function public.yls_is_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from auth.users u
+    join public.yls_staff s on s.email = lower(u.email)
+    where u.id = (select auth.uid())
+      and u.email_confirmed_at is not null
+  );
+$$;
+
+create function public.yls_own_client_id()
+returns text
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select c.id from public.yls_clients c where c.user_id = (select auth.uid());
+$$;
+
+revoke all on function public.yls_is_staff() from public, anon;
+revoke all on function public.yls_own_client_id() from public, anon;
+grant execute on function public.yls_is_staff() to authenticated;
+grant execute on function public.yls_own_client_id() to authenticated;
+
+-- 4. Replace the open demo rules.
+drop policy "yls_clients_read" on public.yls_clients;
+drop policy "yls_clients_insert_guest" on public.yls_clients;
+drop policy "yls_policies_read" on public.yls_policies;
+drop policy "yls_submissions_read" on public.yls_submissions;
+drop policy "yls_submissions_insert" on public.yls_submissions;
+drop policy "yls_submissions_update" on public.yls_submissions;
+drop policy "yls_handoffs_read" on public.yls_handoffs;
+drop policy "yls_handoffs_insert" on public.yls_handoffs;
+drop policy "yls_reminders_read" on public.yls_reminders;
+drop policy "yls_reminders_insert" on public.yls_reminders;
+drop policy "yls_concierge_events_read" on public.yls_concierge_events;
+drop policy "yls_concierge_events_insert" on public.yls_concierge_events;
+
+-- Clients: staff read all; a client reads their own record and may create exactly one,
+-- under their own account and their own sign-in email.
+create policy "yls_clients_select" on public.yls_clients for select to authenticated
+  using ((select public.yls_is_staff()) or user_id = (select auth.uid()));
+create policy "yls_clients_insert_own" on public.yls_clients for insert to authenticated
+  with check (
+    user_id = (select auth.uid())
+    and is_persona = false
+    and lower(email) = lower((select auth.jwt()) ->> 'email')
+    and not (select public.yls_is_staff())
+  );
+
+create policy "yls_policies_select" on public.yls_policies for select to authenticated
+  using ((select public.yls_is_staff()) or client_id = (select public.yls_own_client_id()));
+
+create policy "yls_submissions_select" on public.yls_submissions for select to authenticated
+  using ((select public.yls_is_staff()) or client_id = (select public.yls_own_client_id()));
+create policy "yls_submissions_insert" on public.yls_submissions for insert to authenticated
+  with check (
+    is_sample = false
+    and ((select public.yls_is_staff()) or client_id = (select public.yls_own_client_id()))
+  );
+create policy "yls_submissions_update" on public.yls_submissions for update to authenticated
+  using ((select public.yls_is_staff()) or client_id = (select public.yls_own_client_id()))
+  with check ((select public.yls_is_staff()) or client_id = (select public.yls_own_client_id()));
+
+create policy "yls_handoffs_select" on public.yls_handoffs for select to authenticated
+  using ((select public.yls_is_staff()) or client_id = (select public.yls_own_client_id()));
+create policy "yls_handoffs_insert" on public.yls_handoffs for insert to authenticated
+  with check (
+    is_sample = false
+    and ((select public.yls_is_staff()) or client_id = (select public.yls_own_client_id()))
+  );
+
+-- Reminders: a client reads their own; only staff send them.
+create policy "yls_reminders_select" on public.yls_reminders for select to authenticated
+  using ((select public.yls_is_staff()) or client_id = (select public.yls_own_client_id()));
+create policy "yls_reminders_insert_staff" on public.yls_reminders for insert to authenticated
+  with check ((select public.yls_is_staff()));
+
+-- Concierge activity feeds the staff KPIs: any signed-in account adds to it, staff read it.
+create policy "yls_concierge_events_select_staff" on public.yls_concierge_events for select to authenticated
+  using ((select public.yls_is_staff()));
+create policy "yls_concierge_events_insert" on public.yls_concierge_events for insert to authenticated
+  with check ((select auth.uid()) is not null);
+
+-- 5. Table permissions: nothing for visitors who are not signed in; signed-in accounts
+--    get only what the rules above use. A submission can only have its checklist updated.
+revoke all on public.yls_clients, public.yls_policies, public.yls_submissions,
+  public.yls_handoffs, public.yls_reminders, public.yls_concierge_events from anon, authenticated;
+revoke all on sequence public.yls_client_seq, public.yls_submission_seq,
+  public.yls_handoff_seq, public.yls_reminder_seq from anon;
+
+grant select, insert on public.yls_clients, public.yls_submissions, public.yls_handoffs,
+  public.yls_reminders, public.yls_concierge_events to authenticated;
+grant select on public.yls_policies to authenticated;
+grant update (items, completion_pct, status) on public.yls_submissions to authenticated;
+
+-- 6. Documents: only a signed-in account may upload, and only into its own folder.
+--    Nobody can read, change or delete stored files through the app.
+drop policy "yls_client_documents_upload" on storage.objects;
+create policy "yls_client_documents_upload_own" on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'yls-client-documents'
+    and name ~ ('^intake/' || (select auth.uid())::text || '/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|pdf)$')
+  );

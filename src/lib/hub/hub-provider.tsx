@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { User } from "@supabase/supabase-js";
 
 import i18n from "@/i18n/config";
 import { translateForAgent } from "./agents";
@@ -7,17 +8,17 @@ import {
   EMPTY_HUB_DATA,
   fetchHubData,
   insertAutoResolved,
-  insertGuestClient,
   insertHandoff,
   insertReminder,
   insertSubmission,
+  resolveAccess,
   saveSubmissionItems,
   subscribeHub,
+  type HubAccess,
   type HubData,
 } from "./hub-api";
 import {
   HubContext,
-  type GuestContact,
   type HandoffInput,
   type HubContextValue,
   type HubStatus,
@@ -25,17 +26,18 @@ import {
 } from "./hub-context";
 import { buildReminder } from "./labels";
 import { buildSummary } from "./triage";
-import {
-  GUEST_PERSONA,
-  type ChatMessage,
-  type ClientTab,
-  type HubView,
-  type LangCode,
-  type LineId,
-  type SubmissionItem,
+import type {
+  ChatMessage,
+  ClientTab,
+  HubView,
+  LangCode,
+  LineId,
+  SubmissionItem,
 } from "./types";
 
+/** The sample client staff see first when they open the Client Portal. */
 const INITIAL_PERSONA = "CLT-101";
+const NO_ACCESS: HubAccess = { isStaff: false, ownClientId: null };
 
 /** Puts a saved record first, replacing any copy a live refresh already delivered. */
 const upsertFirst = <T extends { id: string }>(list: T[], row: T) => [
@@ -43,16 +45,25 @@ const upsertFirst = <T extends { id: string }>(list: T[], row: T) => [
   ...list.filter((entry) => entry.id !== row.id),
 ];
 
-export const HubProvider = ({ children }: { children: ReactNode }) => {
+type HubProviderProps = {
+  /** The signed-in account. The provider is remounted when the account changes. */
+  user: User;
+  children: ReactNode;
+};
+
+export const HubProvider = ({ user, children }: HubProviderProps) => {
   const [data, setData] = useState<HubData>(EMPTY_HUB_DATA);
   const [status, setStatus] = useState<HubStatus>("loading");
+  const [access, setAccess] = useState<HubAccess>(NO_ACCESS);
   const dataRef = useRef(data);
   dataRef.current = data;
+  const userRef = useRef(user);
+  userRef.current = user;
+  const accessRequest = useRef<Promise<HubAccess> | null>(null);
   const languageApplied = useRef(false);
 
   const [view, setView] = useState<HubView>("client");
   const [personaId, setPersonaId] = useState(INITIAL_PERSONA);
-  const [guestClientId, setGuestClientId] = useState<string | null>(null);
   const [clientTab, setClientTab] = useState<ClientTab>("intake");
   const [resumeSubmissionId, setResumeSubmissionId] = useState<string | null>(null);
   const [intakePreset, setIntakePreset] = useState<LineId | null>(null);
@@ -60,13 +71,22 @@ export const HubProvider = ({ children }: { children: ReactNode }) => {
 
   const reload = useCallback(async () => {
     try {
+      // Worked out once per sign-in, so a client's record is never created twice.
+      accessRequest.current ??= resolveAccess(userRef.current);
+      const nextAccess = await accessRequest.current.catch((error) => {
+        accessRequest.current = null;
+        throw error;
+      });
       const next = await fetchHubData();
+      setAccess(nextAccess);
       setData(next);
       setStatus("ready");
-      // The first persona opens in their preferred language.
       if (!languageApplied.current) {
         languageApplied.current = true;
-        const first = next.clients.find((client) => client.id === INITIAL_PERSONA);
+        // Staff open on the Command Center; a client opens in their preferred language.
+        if (nextAccess.isStaff) setView("agent");
+        const firstId = nextAccess.isStaff ? INITIAL_PERSONA : nextAccess.ownClientId;
+        const first = next.clients.find((client) => client.id === firstId);
         if (first) void i18n.changeLanguage(first.preferredLanguage);
       }
     } catch (error) {
@@ -93,30 +113,15 @@ export const HubProvider = ({ children }: { children: ReactNode }) => {
     if (client) void i18n.changeLanguage(client.preferredLanguage);
   }, []);
 
+  // A client is always themselves; staff view the Client Portal as a sample client.
+  const activeClientId = access.isStaff ? personaId : access.ownClientId;
+  const chatKey = activeClientId ?? "";
+
   const pushChat = useCallback(
     (messages: ChatMessage[]) =>
-      setChats((prev) => ({ ...prev, [personaId]: [...(prev[personaId] ?? []), ...messages] })),
-    [personaId],
+      setChats((prev) => ({ ...prev, [chatKey]: [...(prev[chatKey] ?? []), ...messages] })),
+    [chatKey],
   );
-
-  const replaceChatMessage = useCallback(
-    (id: string, message: ChatMessage) =>
-      setChats((prev) => ({
-        ...prev,
-        [personaId]: (prev[personaId] ?? []).map((entry) => (entry.id === id ? message : entry)),
-      })),
-    [personaId],
-  );
-
-  const registerGuest = useCallback(async (contact: GuestContact) => {
-    const client = await insertGuestClient(contact);
-    setData((current) => ({
-      ...current,
-      clients: [...current.clients.filter((entry) => entry.id !== client.id), client],
-    }));
-    setGuestClientId(client.id);
-    return client;
-  }, []);
 
   const submitIntake = useCallback(async (input: IntakeInput) => {
     const submission = await insertSubmission(input);
@@ -159,7 +164,7 @@ export const HubProvider = ({ children }: { children: ReactNode }) => {
       }
     }
     const handoff = await insertHandoff({
-      clientId: input.client?.id ?? null,
+      clientId: input.client.id,
       contactName: input.contactName,
       contactPhone: input.contactPhone,
       language: input.language,
@@ -200,55 +205,54 @@ export const HubProvider = ({ children }: { children: ReactNode }) => {
     [reload],
   );
 
-  const value = useMemo<HubContextValue>(() => {
-    const activeId = personaId === GUEST_PERSONA ? guestClientId : personaId;
-    return {
+  const value = useMemo<HubContextValue>(
+    () => ({
       ...data,
       status,
       retry,
-      view,
+      isStaff: access.isStaff,
+      view: access.isStaff ? view : "client",
       setView,
       personaId,
       setPersona,
-      personas: data.clients.filter((client) => client.isPersona),
-      currentClient: data.clients.find((client) => client.id === activeId) ?? null,
+      personas: access.isStaff ? data.clients.filter((client) => client.isPersona) : [],
+      currentClient: data.clients.find((client) => client.id === activeClientId) ?? null,
       clientTab,
       setClientTab,
       resumeSubmissionId,
       setResumeSubmissionId,
       intakePreset,
       setIntakePreset,
-      chat: chats[personaId] ?? [],
+      chat: chats[chatKey] ?? [],
       pushChat,
-      replaceChatMessage,
-      registerGuest,
       submitIntake,
       updateSubmissionItems,
       createHandoff,
       sendReminder,
       recordAutoResolved,
-    };
-  }, [
-    data,
-    status,
-    retry,
-    view,
-    personaId,
-    guestClientId,
-    clientTab,
-    resumeSubmissionId,
-    intakePreset,
-    chats,
-    setPersona,
-    pushChat,
-    replaceChatMessage,
-    registerGuest,
-    submitIntake,
-    updateSubmissionItems,
-    createHandoff,
-    sendReminder,
-    recordAutoResolved,
-  ]);
+    }),
+    [
+      data,
+      status,
+      retry,
+      access.isStaff,
+      view,
+      personaId,
+      activeClientId,
+      clientTab,
+      resumeSubmissionId,
+      intakePreset,
+      chats,
+      chatKey,
+      setPersona,
+      pushChat,
+      submitIntake,
+      updateSubmissionItems,
+      createHandoff,
+      sendReminder,
+      recordAutoResolved,
+    ],
+  );
 
   return <HubContext.Provider value={value}>{children}</HubContext.Provider>;
 };

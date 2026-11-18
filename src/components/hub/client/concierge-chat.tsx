@@ -22,8 +22,7 @@ const uid = () => crypto.randomUUID();
 
 export const ConciergeChat = () => {
   const { t, i18n } = useTranslation();
-  const { chat, pushChat, replaceChatMessage, currentClient, createHandoff, recordAutoResolved } =
-    useHub();
+  const { chat, pushChat, currentClient, createHandoff, recordAutoResolved } = useHub();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [accepted, setAccepted] = useState<string[]>([]);
@@ -51,7 +50,8 @@ export const ConciergeChat = () => {
 
   /** The handoff reply is only shown once the agent queue has actually received it. */
   const startHandoff = async (pending: PendingHandoff): Promise<Reply> => {
-    if (!currentClient) return { kind: "needContact", pending };
+    // Every signed-in client has a record; without one the handoff cannot be filed.
+    if (!currentClient) throw new Error("No client record is loaded for this account.");
     const handoff = await createHandoff({
       client: currentClient,
       contactName: currentClient.fullName,
@@ -176,30 +176,6 @@ export const ConciergeChat = () => {
     }
   };
 
-  const completeGuestHandoff = async (
-    messageId: string,
-    pending: PendingHandoff,
-    name: string,
-    phone: string,
-  ) => {
-    try {
-      const handoff = await createHandoff({
-        client: null,
-        contactName: name,
-        contactPhone: phone,
-        language,
-        ...pending,
-      });
-      replaceChatMessage(messageId, {
-        id: messageId,
-        role: "assistant",
-        reply: { kind: "handoff", handoffId: handoff.id, phone },
-      });
-    } catch (error) {
-      saveFailed(error);
-    }
-  };
-
   const lastHandoff = [...chat]
     .reverse()
     .find((entry) => entry.role === "assistant" && entry.reply.kind === "handoff");
@@ -262,9 +238,6 @@ export const ConciergeChat = () => {
                   reply={message.reply}
                   offerDisabled={busy || accepted.includes(message.id)}
                   onAcceptOffer={(pending) => void acceptOffer(message.id, pending)}
-                  onGuestContact={(pending, name, phone) =>
-                    void completeGuestHandoff(message.id, pending, name, phone)
-                  }
                 />
               </Bubble>
             ),
@@ -354,10 +327,9 @@ type ReplyContentProps = {
   reply: Reply;
   offerDisabled: boolean;
   onAcceptOffer: (pending: PendingHandoff) => void;
-  onGuestContact: (pending: PendingHandoff, name: string, phone: string) => void;
 };
 
-const ReplyContent = ({ reply, offerDisabled, onAcceptOffer, onGuestContact }: ReplyContentProps) => {
+const ReplyContent = ({ reply, offerDisabled, onAcceptOffer }: ReplyContentProps) => {
   const { t } = useTranslation();
   const { currentClient, submissions, setClientTab } = useHub();
 
@@ -511,47 +483,5 @@ const ReplyContent = ({ reply, offerDisabled, onAcceptOffer, onGuestContact }: R
       );
     case "handoff":
       return <p>{t("chat.reply.handoff", { id: reply.handoffId })}</p>;
-    case "needContact":
-      return (
-        <GuestContactForm onSubmit={(name, phone) => onGuestContact(reply.pending, name, phone)} />
-      );
   }
-};
-
-const GuestContactForm = ({ onSubmit }: { onSubmit: (name: string, phone: string) => void }) => {
-  const { t } = useTranslation();
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-
-  return (
-    <form
-      className="space-y-2"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (name.trim() && phone.trim()) onSubmit(name.trim(), phone.trim());
-      }}
-    >
-      <p>{t("chat.reply.needContact")}</p>
-      <Input
-        value={name}
-        maxLength={120}
-        onChange={(event) => setName(event.target.value)}
-        placeholder={t("intake.guestName")}
-        aria-label={t("intake.guestName")}
-        required
-      />
-      <Input
-        value={phone}
-        type="tel"
-        maxLength={40}
-        onChange={(event) => setPhone(event.target.value)}
-        placeholder={t("intake.guestPhone")}
-        aria-label={t("intake.guestPhone")}
-        required
-      />
-      <Button type="submit" size="sm" variant="crimson">
-        {t("chat.contactSubmit")}
-      </Button>
-    </form>
-  );
 };

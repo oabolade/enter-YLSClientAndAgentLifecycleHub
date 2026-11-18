@@ -17,13 +17,6 @@ import type {
   SubmissionItem,
 } from "./types";
 
-export type GuestContact = {
-  fullName: string;
-  phone: string;
-  email: string;
-  preferredLanguage: LangCode;
-};
-
 export type IntakeInput = {
   clientId: string;
   line: LineId;
@@ -32,7 +25,7 @@ export type IntakeInput = {
 };
 
 export type HandoffInput = {
-  client: Client | null;
+  client: Client;
   contactName: string;
   contactPhone: string;
   language: LangCode;
@@ -50,12 +43,18 @@ export type HubStatus = "loading" | "ready" | "error";
 export type HubContextValue = HubData & {
   status: HubStatus;
   retry: () => void;
+  /**
+   * Whether the signed-in account is YLS staff. This only decides what is shown;
+   * the database decides what each account can actually read and change.
+   */
+  isStaff: boolean;
   view: HubView;
   setView: (view: HubView) => void;
   personaId: string;
   setPersona: (id: string) => void;
-  /** Seeded demo clients offered in the persona quick-select. */
+  /** Sample clients that staff can open the Client Portal as. Empty for clients. */
   personas: Client[];
+  /** The signed-in client, or the sample client a staff member is viewing as. */
   currentClient: Client | null;
   clientTab: ClientTab;
   setClientTab: (tab: ClientTab) => void;
@@ -65,9 +64,7 @@ export type HubContextValue = HubData & {
   setIntakePreset: (line: LineId | null) => void;
   chat: ChatMessage[];
   pushChat: (messages: ChatMessage[]) => void;
-  replaceChatMessage: (id: string, message: ChatMessage) => void;
   // Writes go to the shared database and reject if the save fails.
-  registerGuest: (contact: GuestContact) => Promise<Client>;
   submitIntake: (input: IntakeInput) => Promise<Submission>;
   updateSubmissionItems: (id: string, items: SubmissionItem[]) => Promise<Submission>;
   createHandoff: (input: HandoffInput) => Promise<Handoff>;

@@ -64,7 +64,7 @@ export type Client = {
   preferredLanguage: LangCode;
   phone: string;
   email: string;
-  /** Seeded demo clients offered in the persona quick-select. */
+  /** Sample clients that staff can open the Client Portal as. */
   isPersona: boolean;
   policies: Policy[];
 };
@@ -139,8 +139,7 @@ export type Reply =
   | { kind: "status" }
   | { kind: "fallback"; originalMessage: string }
   | { kind: "unavailable"; originalMessage: string }
-  | { kind: "handoff"; handoffId: string; phone: string }
-  | { kind: "needContact"; pending: PendingHandoff };
+  | { kind: "handoff"; handoffId: string; phone: string };
 
 export type ChatMessage =
   | { id: string; role: "user"; text?: string; chip?: ChipId }
@@ -148,4 +147,3 @@ export type ChatMessage =
 
 export type ClientTab = "intake" | "concierge" | "vault";
 export type HubView = "client" | "agent";
-export const GUEST_PERSONA = "guest";

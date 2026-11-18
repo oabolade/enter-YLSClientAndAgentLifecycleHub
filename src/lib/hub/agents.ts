@@ -59,9 +59,12 @@ export function documentExtension(file: File): string | null {
   return EXTENSION_BY_TYPE[file.type] ?? null;
 }
 
-/** Saves a client document to the private store and returns its path. */
+/** Saves a document to the signed-in account's own folder in the private store. */
 export async function storeDocument(file: File, extension: string): Promise<string> {
-  const path = `intake/${crypto.randomUUID()}.${extension}`;
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user.id;
+  if (!userId) throw new Error("Sign in to upload documents.");
+  const path = `intake/${userId}/${crypto.randomUUID()}.${extension}`;
   const { error } = await supabase.storage
     .from(DOCUMENT_BUCKET)
     .upload(path, file, { contentType: file.type, upsert: false });

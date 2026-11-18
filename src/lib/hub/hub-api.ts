@@ -1,3 +1,6 @@
+import type { User } from "@supabase/supabase-js";
+
+import { fallbackLng, normalizeLanguage } from "@/i18n/config";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -157,32 +160,52 @@ export async function fetchHubData(): Promise<HubData> {
   };
 }
 
-export async function insertGuestClient(contact: {
-  fullName: string;
-  phone: string;
-  email: string;
-  preferredLanguage: LangCode;
-}): Promise<Client> {
+export type HubAccess = {
+  isStaff: boolean;
+  /** The signed-in client's own record. Staff have none. */
+  ownClientId: string | null;
+};
+
+const metadataText = (value: unknown, max: number) =>
+  typeof value === "string" ? value.trim().slice(0, max) : "";
+
+/** Finds the signed-in client's record, creating it from their sign-up details on first use. */
+async function ensureOwnClient(user: User): Promise<string> {
+  const { data: existing, error: readError } = await supabase
+    .from("yls_clients")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (existing) return existing.id;
+
+  const details = user.user_metadata ?? {};
+  const email = user.email ?? "";
   const { data, error } = await supabase
     .from("yls_clients")
     .insert({
-      full_name: contact.fullName.trim(),
-      phone: contact.phone.trim(),
-      email: contact.email.trim(),
-      preferred_language: contact.preferredLanguage,
+      user_id: user.id,
+      full_name: metadataText(details.full_name, 120) || email,
+      phone: metadataText(details.phone, 40),
+      email,
+      preferred_language:
+        normalizeLanguage(metadataText(details.preferred_language, 10)) ?? fallbackLng,
     })
-    .select()
+    .select("id")
     .single();
   if (error) throw error;
-  return {
-    id: data.id,
-    fullName: data.full_name,
-    preferredLanguage: data.preferred_language as LangCode,
-    phone: data.phone,
-    email: data.email,
-    isPersona: data.is_persona,
-    policies: [],
-  };
+  return data.id;
+}
+
+/**
+ * What the signed-in account is. The answer shapes the screens only: the database
+ * applies the same rule to every read and write, whatever the browser claims.
+ */
+export async function resolveAccess(user: User): Promise<HubAccess> {
+  const { data: isStaff, error } = await supabase.rpc("yls_is_staff");
+  if (error) throw error;
+  if (isStaff) return { isStaff: true, ownClientId: null };
+  return { isStaff: false, ownClientId: await ensureOwnClient(user) };
 }
 
 export async function insertSubmission(input: {
@@ -226,7 +249,7 @@ export async function saveSubmissionItems(
 }
 
 export async function insertHandoff(input: {
-  clientId: string | null;
+  clientId: string;
   contactName: string;
   contactPhone: string;
   language: LangCode;

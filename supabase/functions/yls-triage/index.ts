@@ -2,6 +2,8 @@
 // Tier 2 warm handoff. It only returns a routing decision; it never writes a reply and
 // never changes coverage. The browser keeps its own keyword guardrails as a floor.
 
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -161,10 +163,26 @@ const noulOf = (answer: unknown): number | null => {
   return unit(value) ? value : null;
 };
 
+/** The signed-in account making the request, or null. The public key alone is not an account. */
+async function signedInUser(req: Request) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceKey) throw new Error("Account check is not configured");
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+  const { data, error } = await createClient(supabaseUrl, serviceKey).auth.getUser(token);
+  return error ? null : data.user;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    // Checked before any AI call, so the link alone cannot spend AI credits.
+    if (!(await signedInUser(req))) {
+      return json({ error: { message: "Sign in to use the concierge." } }, 401);
+    }
+
     const token = Deno.env.get("AI_API_TOKEN_793f05d9f03b");
     if (!token) throw new Error("AI integration secret is missing");
 

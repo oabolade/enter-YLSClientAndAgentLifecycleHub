@@ -15,20 +15,20 @@ Only the first section is new and needs your approval. The second section record
 
 ### Signing in
 
-- [ ] Opening the hub shows a sign-in screen instead of the portal. It has "Sign in" and "Create account", and a language selector, so the screen works in all five languages.
-- [ ] Creating an account asks for full name, phone number, email, password and preferred language. This replaces the contact form that a New Guest Visitor filled in before.
-- [ ] A new account must confirm its email address through a link sent to that inbox before the first sign-in. This is what makes the staff list safe: nobody can register with someone else's address. Signing in before confirming is refused with a message to check the inbox, and an option to send the link again.
-- [ ] "Forgot password" sends a link to set a new password.
-- [ ] A person stays signed in on their device until they choose Sign out. The top bar shows their name and a Sign out button.
-- [ ] Wrong password, an email that already has an account, or a weak password each show a plain message in the selected language.
+- [x] Opening the hub shows a sign-in screen instead of the portal. It has "Sign in" and "Create account", and a language selector, so the screen works in all five languages.
+- [x] Creating an account asks for full name, phone number, email, password and preferred language. This replaces the contact form that a New Guest Visitor filled in before.
+- [x] A new account must confirm its email address through a link sent to that inbox before the first sign-in. This is what makes the staff list safe: nobody can register with someone else's address. Signing in before confirming is refused with a message to check the inbox, and an option to send the link again.
+- [x] "Forgot password" sends a link to set a new password.
+- [x] A person stays signed in on their device until they choose Sign out. The top bar shows their name and a Sign out button.
+- [x] Wrong password, an email that already has an account, or a weak password each show a plain message in the selected language.
 
 ### What a client sees
 
-- [ ] After signing in, a client lands in the Client Portal in their preferred language, with only their own policies, submissions and reminders. They see no view switcher and no persona list.
-- [ ] A new account starts with an empty vault and can start an intake, upload documents and use the concierge straight away. Intakes and handoffs use the name and phone number from the account, so the client is not asked again.
-- [ ] A client cannot read or change another client's records. This is enforced where the data is stored, not only hidden on screen.
-- [ ] An uploaded document belongs to the account that uploaded it. The document check reads only that account's own files.
-- [ ] The "demo with sample data" footer note no longer appears for clients. They still see the notice that AI features can make mistakes.
+- [x] After signing in, a client lands in the Client Portal in their preferred language, with only their own policies, submissions and reminders. They see no view switcher and no persona list.
+- [x] A new account starts with an empty vault and can start an intake, upload documents and use the concierge straight away. Intakes and handoffs use the name and phone number from the account, so the client is not asked again.
+- [x] A client cannot read or change another client's records. This is enforced where the data is stored, not only hidden on screen.
+- [x] An uploaded document belongs to the account that uploaded it. The document check reads only that account's own files.
+- [x] The "demo with sample data" footer note no longer appears for clients. They still see the notice that AI features can make mistakes.
 
 ### What staff see
 
@@ -40,13 +40,13 @@ Only the first section is new and needs your approval. The second section record
 
 ### AI agents
 
-- [ ] Triage, the handoff summary, the document check and the renewal suggestion answer only signed-in people. A request without an account is refused, so the link alone can no longer use your AI credits.
-- [ ] A client gets renewal suggestions only for their own policies.
+- [x] Triage, the handoff summary, the document check and the renewal suggestion answer only signed-in people. A request without an account is refused, so the link alone can no longer use your AI credits.
+- [x] A client gets renewal suggestions only for their own policies.
 
 ### Existing data
 
-- [ ] The three sample clients and their sample records stay as they are.
-- [ ] The handoffs, the submission, the reminder and the four files created during testing stay, and become visible to staff only. Nothing is deleted.
+- [x] The three sample clients and their sample records stay as they are.
+- [x] The handoffs, the submission, the reminder and the four files created during testing stay, and become visible to staff only. Nothing is deleted.
 
 ### What I need from you
 

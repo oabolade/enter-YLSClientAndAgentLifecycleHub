@@ -3288,6 +3288,7 @@ export type Database = {
           is_persona: boolean
           phone: string
           preferred_language: string
+          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -3297,6 +3298,7 @@ export type Database = {
           is_persona?: boolean
           phone: string
           preferred_language: string
+          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -3306,6 +3308,7 @@ export type Database = {
           is_persona?: boolean
           phone?: string
           preferred_language?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -3469,6 +3472,21 @@ export type Database = {
           },
         ]
       }
+      yls_staff: {
+        Row: {
+          added_at: string
+          email: string
+        }
+        Insert: {
+          added_at?: string
+          email: string
+        }
+        Update: {
+          added_at?: string
+          email?: string
+        }
+        Relationships: []
+      }
       yls_submissions: {
         Row: {
           client_id: string
@@ -3521,7 +3539,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      yls_is_staff: { Args: never; Returns: boolean }
+      yls_own_client_id: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never

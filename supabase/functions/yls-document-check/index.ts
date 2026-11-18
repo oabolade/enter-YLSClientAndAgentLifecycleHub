@@ -13,8 +13,9 @@ const AI_BASE = "https://api.enter.pro";
 const PROJECT_ID = "793f05d9f03b440f91543d698c802783";
 const MODEL = "google/gemini-3.6-flash";
 const BUCKET = "yls-client-documents";
-const PATH_PATTERN =
-  /^intake\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|pdf)$/;
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+/** Each account's files sit in its own folder: intake/<account id>/<file id>.<type>. */
+const PATH_PATTERN = new RegExp(`^intake/(${UUID})/${UUID}\\.(jpg|png|webp|pdf)$`);
 const MIME_TYPES: Record<string, string> = {
   jpg: "image/jpeg",
   png: "image/png",
@@ -149,10 +150,26 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceKey) throw new HttpError(500, "Document store access is not configured");
 
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    // Checked before any file is read or any AI call is made.
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const { data: account, error: accountError } = token
+      ? await supabase.auth.getUser(token)
+      : { data: { user: null }, error: null };
+    const user = accountError ? null : account.user;
+    if (!user) return json({ error: { message: "Sign in to check a document." } }, 401);
+
     const body = await req.json().catch(() => null);
     const path = typeof body?.path === "string" ? body.path : "";
-    if (!PATH_PATTERN.test(path)) {
+    const owner = PATH_PATTERN.exec(path)?.[1];
+    if (!owner) {
       return json({ error: { message: "A valid uploaded document path is required." } }, 400);
+    }
+    // An account can only have its own uploads read, whatever path the request names.
+    if (owner !== user.id) {
+      console.error("Document check refused: file belongs to another account");
+      return json({ error: { message: "This document belongs to another account." } }, 403);
     }
     const requested: unknown[] = Array.isArray(body?.candidates) ? body.candidates : [];
     const candidates = [
@@ -164,7 +181,6 @@ Deno.serve(async (req) => {
     // Nothing left to match against: no need to read the file.
     if (candidates.length === 0) return json({ match: null, legible: true, note: "" });
 
-    const supabase = createClient(supabaseUrl, serviceKey);
     const { data: file, error: downloadError } = await supabase.storage.from(BUCKET).download(path);
     if (downloadError || !file) {
       console.error("Document download failed", downloadError?.message);
