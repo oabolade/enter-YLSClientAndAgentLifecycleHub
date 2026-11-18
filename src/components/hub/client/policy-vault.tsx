@@ -6,6 +6,7 @@ import {
   Download,
   FolderOpen,
   Lightbulb,
+  Loader2,
   MessageSquareText,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -20,24 +21,14 @@ import { completion } from "@/lib/hub/checklists";
 import { useHub } from "@/lib/hub/hub-context";
 import { docLabel, lineLabel, submissionTitle } from "@/lib/hub/labels";
 import { downloadSampleDocument } from "@/lib/hub/sample-pdf";
-import type { Client, LangCode, Policy } from "@/lib/hub/types";
+import type { LangCode, Policy } from "@/lib/hub/types";
+import { useNudge } from "@/lib/hub/use-nudge";
 
 const RENEWAL_WARNING_DAYS = 30;
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 const daysUntil = (date: string) =>
   Math.ceil((new Date(`${date}T00:00:00`).getTime() - Date.now()) / 86_400_000);
-
-type Recommendation = "medicareReview" | "bundleHome" | "group" | null;
-
-function pickRecommendation(client: Client): Recommendation {
-  const lines = client.policies.map((policy) => policy.line);
-  if (client.policies.some((p) => p.line === "medicare" && p.status === "renewal_review"))
-    return "medicareReview";
-  if (lines.includes("auto") && !lines.includes("home")) return "bundleHome";
-  if (lines.includes("commercial")) return "group";
-  return null;
-}
 
 export const PolicyVault = () => {
   const { t, i18n } = useTranslation();
@@ -48,6 +39,7 @@ export const PolicyVault = () => {
 
   const language = (normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ??
     fallbackLng) as LangCode;
+  const nudge = useNudge(currentClient, language);
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(new Date(value));
 
@@ -75,7 +67,8 @@ export const PolicyVault = () => {
     );
   }
 
-  const recommendation = pickRecommendation(currentClient);
+  // The nudge agent picks the suggestion and writes it; the standard wording is the fallback.
+  const recommendation = nudge.recommendation;
   const medicarePolicy = currentClient.policies.find((policy) => policy.line === "medicare");
   const callbackId = callbacks[currentClient.id];
 
@@ -93,6 +86,8 @@ export const PolicyVault = () => {
         action: null,
         originalMessage: title,
         topic,
+        // Fixed English topic for the agent's brief; no AI translation needed.
+        skipBrief: true,
       });
       setCallbacks((prev) => ({ ...prev, [currentClient.id]: handoff.id }));
     } catch (error) {
@@ -278,7 +273,16 @@ export const PolicyVault = () => {
               <CardTitle className="text-xl">{recTitle}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-sm">{recBody}</p>
+              {nudge.loading ? (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+              ) : (
+                <div className="space-y-1">
+                  <p className="text-sm">{nudge.body ?? recBody}</p>
+                  {nudge.body ? (
+                    <p className="text-xs text-muted-foreground">{t("vault.rec.aiNote")}</p>
+                  ) : null}
+                </div>
+              )}
               {recommendation === "bundleHome" ? (
                 <Button
                   variant="crimson"

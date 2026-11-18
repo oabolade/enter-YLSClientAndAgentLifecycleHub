@@ -41,6 +41,8 @@ export type HandoffInput = {
   action: CoverageAction | null;
   originalMessage: string;
   topic?: string;
+  /** Skip the AI English rendering when the message is a button label, not client wording. */
+  skipBrief?: boolean;
 };
 
 export type HubStatus = "loading" | "ready" | "error";

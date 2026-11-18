@@ -8,11 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { fallbackLng, normalizeLanguage } from "@/i18n/config";
+import { triageMessage } from "@/lib/hub/agents";
 import { buildChecklist, completion } from "@/lib/hub/checklists";
 import { useHub } from "@/lib/hub/hub-context";
 import { docLabel, lineLabel } from "@/lib/hub/labels";
 import { downloadSampleDocument } from "@/lib/hub/sample-pdf";
-import { classify, classifyChip, relatedPolicy, type Triage } from "@/lib/hub/triage";
+import { classifyChip, relatedPolicy, type Triage } from "@/lib/hub/triage";
 import type { ChatMessage, ChipId, LangCode, PendingHandoff, Reply } from "@/lib/hub/types";
 import { cn } from "@/lib/utils";
 
@@ -61,13 +62,18 @@ export const ConciergeChat = () => {
     return { kind: "handoff", handoffId: handoff.id, phone: currentClient.phone };
   };
 
-  const respond = async (triage: Triage, originalMessage: string): Promise<Reply> => {
+  const respond = async (
+    triage: Triage,
+    originalMessage: string,
+    skipBrief = false,
+  ): Promise<Reply> => {
     if (triage.tier === 2) {
       return startHandoff({
         reason: triage.reason,
         line: triage.line,
         action: triage.action,
         originalMessage,
+        skipBrief,
       });
     }
     const resolved = (reply: Reply): Reply => {
@@ -119,13 +125,26 @@ export const ConciergeChat = () => {
     }
   };
 
+  /** A typed message goes to the live triage agent; if it is down, the client is offered a person. */
+  const answer = async (message: string): Promise<Reply> => {
+    let triage: Triage;
+    try {
+      triage = await triageMessage(message);
+    } catch (error) {
+      console.error("Triage agent unavailable", error);
+      return { kind: "unavailable", originalMessage: message };
+    }
+    return respond(triage, message);
+  };
+
   const send = (text: string, chip?: ChipId) => {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setDraft("");
     void deliver(
       chip ? { id: uid(), role: "user", chip } : { id: uid(), role: "user", text: trimmed },
-      () => respond(chip ? classifyChip(chip) : classify(trimmed), trimmed),
+      // Quick-reply buttons have a fixed meaning, so they skip the AI.
+      () => (chip ? respond(classifyChip(chip), trimmed, true) : answer(trimmed)),
     );
   };
 
@@ -133,7 +152,13 @@ export const ConciergeChat = () => {
     if (busy) return;
     const label = t("chat.talkToAgent");
     void deliver({ id: uid(), role: "user", text: label }, () =>
-      startHandoff({ reason: "human_request", line: null, action: null, originalMessage: label }),
+      startHandoff({
+        reason: "human_request",
+        line: null,
+        action: null,
+        originalMessage: label,
+        skipBrief: true,
+      }),
     );
   };
 
@@ -191,7 +216,7 @@ export const ConciergeChat = () => {
             <Sparkles className="h-5 w-5 text-crimson" aria-hidden />
             {t("chat.title")}
           </CardTitle>
-          <Badge variant="muted">{t("chat.simulated")}</Badge>
+          <Badge variant="muted">{t("chat.aiBadge")}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">{t("chat.subtitle")}</p>
       </CardHeader>
@@ -464,6 +489,18 @@ const ReplyContent = ({ reply, offerDisabled, onAcceptOffer, onGuestContact }: R
       return (
         <>
           <p>{t("chat.reply.fallback")}</p>
+          {offerButton({
+            reason: "unanswered",
+            line: null,
+            action: null,
+            originalMessage: reply.originalMessage,
+          })}
+        </>
+      );
+    case "unavailable":
+      return (
+        <>
+          <p>{t("chat.reply.unavailable")}</p>
           {offerButton({
             reason: "unanswered",
             line: null,

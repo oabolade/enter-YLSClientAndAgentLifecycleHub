@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import i18n from "@/i18n/config";
+import { translateForAgent } from "./agents";
 import { completion } from "./checklists";
 import {
   EMPTY_HUB_DATA,
@@ -136,6 +137,27 @@ export const HubProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const createHandoff = useCallback(async (input: HandoffInput) => {
+    let englishSummary = buildSummary({
+      name: input.contactName,
+      language: input.language,
+      phone: input.contactPhone,
+      reason: input.reason,
+      line: input.line,
+      action: input.action,
+      client: input.client,
+      topic: input.topic,
+    });
+    if (!input.skipBrief) {
+      // The handoff must reach the queue even if the AI rendering is unavailable.
+      try {
+        const english = await translateForAgent(input.originalMessage);
+        englishSummary += ` In the client's words (AI translation): ${english}`;
+      } catch (error) {
+        console.error("AI handoff summary unavailable", error);
+        englishSummary +=
+          " The AI translation of the client's message was unavailable; see the original wording.";
+      }
+    }
     const handoff = await insertHandoff({
       clientId: input.client?.id ?? null,
       contactName: input.contactName,
@@ -144,16 +166,7 @@ export const HubProvider = ({ children }: { children: ReactNode }) => {
       reason: input.reason,
       line: input.line,
       originalMessage: input.originalMessage,
-      englishSummary: buildSummary({
-        name: input.contactName,
-        language: input.language,
-        phone: input.contactPhone,
-        reason: input.reason,
-        line: input.line,
-        action: input.action,
-        client: input.client,
-        topic: input.topic,
-      }),
+      englishSummary,
     });
     setData((current) => ({ ...current, handoffs: upsertFirst(current.handoffs, handoff) }));
     return handoff;

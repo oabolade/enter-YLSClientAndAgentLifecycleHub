@@ -61,31 +61,6 @@ export function buildChecklist(line: LineId, request: RequestTypeId): ChecklistI
   }
 }
 
-const FILE_PATTERNS: [DocId, RegExp][] = [
-  ["teen_driver_license", /(teen|permit)/],
-  ["driver_license", /(driver|licen[sc]e|\bdl\b|驾照|駕照|bang ?lai|lisensya)/],
-  ["vin_registration", /(\bvin\b|regist)/],
-  ["auto_declarations", /(decl|dec ?page)/],
-  ["home_declarations", /(decl|dec ?page)/],
-  ["mortgagee_clause", /mortgage/],
-  ["medicare_card", /medicare/],
-  ["prescription_list", /(prescri|\brx\b|medication)/],
-  ["loss_runs", /loss/],
-  ["current_coi", /(\bcoi\b|certificate)/],
-  ["photo_id", /(passport|photo ?id|\bid\b|licen[sc]e)/],
-  ["health_questionnaire", /(health|questionnaire)/],
-  ["existing_life_statement", /(statement|life)/],
-];
-
-/** Simulated document check: match an uploaded file to a checklist item by its name. */
-export function matchFile(fileName: string, candidates: DocId[]): DocId | null {
-  const normalized = fileName.toLowerCase().replace(/[_\-.]+/g, " ");
-  const hit = FILE_PATTERNS.find(
-    ([id, pattern]) => candidates.includes(id) && pattern.test(normalized),
-  );
-  return hit ? hit[0] : null;
-}
-
 export function toSubmissionItems(checklist: ChecklistItem[]): SubmissionItem[] {
   return checklist.map((entry) => ({ ...entry, received: false }));
 }

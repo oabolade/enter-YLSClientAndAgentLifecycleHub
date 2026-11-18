@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileText, Loader2, UploadCloud, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { ProgressBar } from "@/components/hub/progress-bar";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { completion, matchFile } from "@/lib/hub/checklists";
+import {
+  DOCUMENT_ACCEPT,
+  checkDocument,
+  documentExtension,
+  storeDocument,
+} from "@/lib/hub/agents";
+import { completion } from "@/lib/hub/checklists";
 import { docLabel } from "@/lib/hub/labels";
 import type { DocId, SubmissionItem } from "@/lib/hub/types";
 import { cn } from "@/lib/utils";
@@ -21,18 +28,49 @@ import { cn } from "@/lib/utils";
 type ChecklistEditorProps = {
   items: SubmissionItem[];
   onChange: (items: SubmissionItem[]) => void;
+  /** Name the document agent compares against the name on each document. */
+  clientName: string;
+  /** Reports whether uploads are still being stored or checked. */
+  onBusyChange?: (busy: boolean) => void;
 };
 
-type UnmatchedFile = { key: string; name: string };
+type QueuedFile = { key: string; file: File; extension: string };
 
-export const ChecklistEditor = ({ items, onChange }: ChecklistEditorProps) => {
+/** A stored file the document agent could not place; the client may choose its item. */
+type UnmatchedFile = {
+  key: string;
+  name: string;
+  path: string;
+  note: string;
+  reason: "unmatched" | "unreadable" | "unchecked";
+};
+
+const CLEARED_FILE: Partial<SubmissionItem> = {
+  received: false,
+  fileName: undefined,
+  filePath: undefined,
+  aiVerified: undefined,
+  aiNote: undefined,
+};
+
+export const ChecklistEditor = ({
+  items,
+  onChange,
+  clientName,
+  onBusyChange,
+}: ChecklistEditorProps) => {
   const { t } = useTranslation();
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const inputRef = useRef<HTMLInputElement>(null);
-  const [verifying, setVerifying] = useState<string[]>([]);
+  const [verifying, setVerifying] = useState<{ key: string; name: string }[]>([]);
   const [unmatched, setUnmatched] = useState<UnmatchedFile[]>([]);
   const [dragging, setDragging] = useState(false);
+
+  const busy = verifying.length > 0;
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
 
   const apply = (next: SubmissionItem[]) => {
     itemsRef.current = next;
@@ -41,36 +79,83 @@ export const ChecklistEditor = ({ items, onChange }: ChecklistEditorProps) => {
   const patchItem = (id: DocId, patch: Partial<SubmissionItem>) =>
     apply(itemsRef.current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
 
-  const openFileItems = () =>
-    itemsRef.current.filter((entry) => entry.kind === "file" && !entry.received);
+  const openFileIds = () =>
+    itemsRef.current
+      .filter((entry) => entry.kind === "file" && !entry.received)
+      .map((entry) => entry.id);
 
-  const handleFiles = (files: FileList | null) => {
-    if (!files) return;
-    Array.from(files).forEach((file, index) => {
-      setVerifying((prev) => [...prev, file.name]);
-      // Simulated verification delay; the live Document Completeness agent replaces this.
-      window.setTimeout(() => {
-        setVerifying((prev) => {
-          const at = prev.indexOf(file.name);
-          return at === -1 ? prev : [...prev.slice(0, at), ...prev.slice(at + 1)];
-        });
-        const hit = matchFile(
-          file.name,
-          openFileItems().map((entry) => entry.id),
-        );
-        if (hit) patchItem(hit, { received: true, fileName: file.name });
-        else
-          setUnmatched((prev) => [
-            ...prev,
-            { key: `${file.name}-${Date.now()}-${index}`, name: file.name },
-          ]);
-      }, 900 + index * 300);
+  const processFile = async ({ key, file, extension }: QueuedFile) => {
+    const path = await storeDocument(file, extension).catch((error) => {
+      console.error("Document upload failed", error);
+      return null;
     });
+    if (!path) {
+      toast.error(t("intake.uploadFailed", { file: file.name }));
+      return;
+    }
+    const hold = (reason: UnmatchedFile["reason"], note = "") =>
+      setUnmatched((prev) => [...prev, { key, name: file.name, path, note, reason }]);
+
+    try {
+      const verdict = await checkDocument(path, openFileIds(), clientName);
+      if (verdict.match && openFileIds().includes(verdict.match)) {
+        patchItem(verdict.match, {
+          received: true,
+          fileName: file.name,
+          filePath: path,
+          aiVerified: true,
+          aiNote: verdict.note,
+        });
+      } else {
+        hold(verdict.legible ? "unmatched" : "unreadable", verdict.note);
+      }
+    } catch (error) {
+      // The file is saved; without the agent, the client chooses where it belongs.
+      console.error("Document agent unavailable", error);
+      hold("unchecked");
+    }
+  };
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files) return;
+    const queue: QueuedFile[] = [];
+    for (const file of Array.from(files)) {
+      const extension = documentExtension(file);
+      if (extension) queue.push({ key: crypto.randomUUID(), file, extension });
+      else toast.error(t("intake.fileRejected", { file: file.name }));
+    }
+    if (queue.length === 0) return;
+    setVerifying((prev) => [...prev, ...queue.map(({ key, file }) => ({ key, name: file.name }))]);
+    // One at a time, so two files are never matched to the same checklist item.
+    for (const entry of queue) {
+      try {
+        await processFile(entry);
+      } finally {
+        setVerifying((prev) => prev.filter((pending) => pending.key !== entry.key));
+      }
+    }
   };
 
   const assign = (file: UnmatchedFile, id: DocId) => {
-    patchItem(id, { received: true, fileName: file.name });
+    patchItem(id, {
+      received: true,
+      fileName: file.name,
+      filePath: file.path,
+      aiVerified: false,
+      aiNote: file.note,
+    });
     setUnmatched((prev) => prev.filter((entry) => entry.key !== file.key));
+  };
+
+  const reasonText = (reason: UnmatchedFile["reason"]) => {
+    switch (reason) {
+      case "unmatched":
+        return t("intake.reasonUnmatched");
+      case "unreadable":
+        return t("intake.reasonUnreadable");
+      case "unchecked":
+        return t("intake.reasonUnchecked");
+    }
   };
 
   const progress = completion(items);
@@ -119,6 +204,9 @@ export const ChecklistEditor = ({ items, onChange }: ChecklistEditorProps) => {
                     ) : flagged ? (
                       <Badge variant="warning">{t("intake.missing")}</Badge>
                     ) : null}
+                    {entry.received && entry.aiVerified ? (
+                      <Badge variant="muted">{t("intake.aiVerified")}</Badge>
+                    ) : null}
                   </div>
                   {entry.kind === "info" && !entry.fileName ? (
                     <Input
@@ -143,7 +231,7 @@ export const ChecklistEditor = ({ items, onChange }: ChecklistEditorProps) => {
                     size="icon"
                     className="h-8 w-8 shrink-0"
                     aria-label={t("common.remove")}
-                    onClick={() => patchItem(entry.id, { received: false, fileName: undefined })}
+                    onClick={() => patchItem(entry.id, CLEARED_FILE)}
                   >
                     <X />
                   </Button>
@@ -165,7 +253,7 @@ export const ChecklistEditor = ({ items, onChange }: ChecklistEditorProps) => {
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
-          handleFiles(event.dataTransfer.files);
+          void handleFiles(event.dataTransfer.files);
         }}
         className={cn(
           "flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-input bg-card px-4 py-8 text-center transition-colors hover:border-primary hover:bg-secondary",
@@ -181,20 +269,18 @@ export const ChecklistEditor = ({ items, onChange }: ChecklistEditorProps) => {
         ref={inputRef}
         type="file"
         multiple
+        accept={DOCUMENT_ACCEPT}
         className="hidden"
         onChange={(event) => {
-          handleFiles(event.target.files);
+          void handleFiles(event.target.files);
           event.target.value = "";
         }}
       />
 
-      {verifying.map((name, index) => (
-        <p
-          key={`${name}-${index}`}
-          className="flex items-center gap-2 text-sm text-muted-foreground"
-        >
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          {t("intake.verifying", { file: name })}
+      {verifying.map((pending) => (
+        <p key={pending.key} className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+          <span className="truncate">{t("intake.verifying", { file: pending.name })}</span>
         </p>
       ))}
 
@@ -204,6 +290,7 @@ export const ChecklistEditor = ({ items, onChange }: ChecklistEditorProps) => {
           className="space-y-2 rounded-lg border border-warning/50 bg-warning-soft/60 p-3"
         >
           <p className="text-sm font-medium">{t("intake.unmatchedTitle")}</p>
+          <p className="text-sm">{reasonText(file.reason)}</p>
           <p className="truncate text-xs text-muted-foreground">{file.name}</p>
           <div className="flex items-center gap-2">
             <Select onValueChange={(id) => assign(file, id as DocId)}>

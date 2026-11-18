@@ -10,8 +10,9 @@ import type {
 } from "./types";
 
 /**
- * Simulated Bilingual Triage agent. Rule-based stand-in for the Covey agent:
- * swap `classify` and `buildSummary` for the live agent call when it is ready.
+ * Triage decisions. The live Bilingual Triage agent (see `agents.ts`) classifies each
+ * typed message; the keyword rules here are the hard-coded floor that sends coverage
+ * changes, disputes, Medicare comparisons and upset clients to a person regardless.
  */
 
 export type Triage =
@@ -67,62 +68,21 @@ const FRUSTRATED = [
   /(bực|tức giận|thất vọng|quá tệ|khiếu nại)/,
   /(galit|naiinis|nakakainis|dismayado|reklamo)/,
 ];
-const DOWNLOAD = [
-  /(download|id card|\bcoi\b|certificate|proof of insurance)/,
-  /(下载|下載|保险卡|保險卡|保险证明|保險證明)/,
-  /(tải|thẻ bảo hiểm|chứng nhận)/,
-  /(i-download|sertipiko|katibayan)/,
-];
-const COI = /(\bcoi\b|certificate|保险证明|保險證明|chứng nhận|sertipiko)/;
-const DOCS = [
-  /(document|paperwork|what do i need|need to (provide|bring|upload)|checklist|requirement)/,
-  /(文件|资料|資料|材料|需要什么|需要什麼|要咩)/,
-  /(giấy tờ|tài liệu|hồ sơ cần|cần những gì)/,
-  /(dokumento|papeles)/,
-];
-const ADD_DRIVER = /(add.{0,20}driver|添加驾驶|加司機|加司机|thêm tài xế|magdagdag ng driver)/;
-const STATUS = [
-  /(status|progress|where is my|my (submission|application|request))/,
-  /(进度|進度|状态|狀態)/,
-  /(tình trạng|trạng thái|tiến độ)/,
-  /(kalagayan|kulang pa)/,
-];
-const PAYMENT = [
-  /(\bpay|payment|\bbill|autopay)/,
-  /(付款|缴费|繳費|支付|账单|賬單|帳單|交費)/,
-  /(thanh toán|đóng phí|hóa đơn)/,
-  /(bayad|magbayad|bayaran)/,
-];
-const CONTACT = [
-  /(office hours|opening hours|\bhours\b|address|location|phone number|contact|website)/,
-  /(营业时间|營業時間|地址|电话|電話|联系|聯絡|联络)/,
-  /(giờ làm việc|địa chỉ|số điện thoại|liên hệ)/,
-  /(oras ng opisina|opisina|numero ng telepono|kontak)/,
-];
 
 export function detectLine(text: string): LineId | null {
   const lowered = text.toLowerCase();
   return LINE_PATTERNS.find(([, pattern]) => pattern.test(lowered))?.[0] ?? null;
 }
 
-export function classify(message: string): Triage {
+/** Tier 2 guardrail: a handoff decision when the wording alone requires one, else null. */
+export function mandatoryHandoff(message: string): Extract<Triage, { tier: 2 }> | null {
   const text = message.toLowerCase();
   const line = detectLine(text);
-  const tier2 = (reason: HandoffReason, action: CoverageAction | null = null): Triage => ({
-    tier: 2,
-    reason,
-    line,
-    action,
-  });
-  const tier1 = (intent: Extract<Triage, { tier: 1 }>["intent"]): Triage => ({
-    tier: 1,
-    intent,
-    line,
-    addDriver: ADD_DRIVER.test(text),
-    wantsCoi: COI.test(text),
-  });
+  const tier2 = (
+    reason: HandoffReason,
+    action: CoverageAction | null = null,
+  ): Extract<Triage, { tier: 2 }> => ({ tier: 2, reason, line, action });
 
-  // Tier 2 guardrails run first: anything touching live coverage goes to a person.
   if (any(text, CANCEL)) return tier2("immediate_coverage_change", "cancel");
   if (any(text, BIND)) return tier2("immediate_coverage_change", "bind");
   if (any(text, MODIFY)) return tier2("immediate_coverage_change", "change");
@@ -130,13 +90,7 @@ export function classify(message: string): Triage {
   if (MEDICARE.test(text) && any(text, COMPARE)) return tier2("medicare_comparison");
   if (any(text, FRUSTRATED)) return tier2("frustrated");
   if (any(text, HUMAN)) return tier2("human_request");
-
-  if (any(text, DOWNLOAD)) return tier1("download");
-  if (ADD_DRIVER.test(text) || any(text, DOCS)) return tier1("docs");
-  if (any(text, STATUS)) return tier1("status");
-  if (any(text, PAYMENT)) return tier1("payment");
-  if (any(text, CONTACT)) return tier1("contact");
-  return tier1("fallback");
+  return null;
 }
 
 export function classifyChip(chip: ChipId): Triage {
@@ -174,7 +128,10 @@ export function relatedPolicy(client: Client | null, line: LineId | null): Polic
   return client.policies.length === 1 ? client.policies[0] : null;
 }
 
-/** Structured English brief for the licensed agent, whatever language the client used. */
+/**
+ * The factual part of the agent brief, built from records rather than by the AI so the
+ * name, policy number and callback number are always exact.
+ */
 export function buildSummary(input: SummaryInput): string {
   const { name, reason, line, action, client } = input;
   const policy = relatedPolicy(client, line);

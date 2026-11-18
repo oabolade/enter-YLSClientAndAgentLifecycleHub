@@ -37,6 +37,12 @@ export type SubmissionItem = ChecklistItem & {
   received: boolean;
   fileName?: string;
   value?: string;
+  /** Where the uploaded file sits in the private document store. */
+  filePath?: string;
+  /** True when the document agent confirmed the match; false when the client chose it. */
+  aiVerified?: boolean;
+  /** The document agent's short English note for the licensed agent. */
+  aiNote?: string;
 };
 
 export type PolicyStatus = "active" | "renewal_review";
@@ -119,6 +125,8 @@ export type PendingHandoff = {
   line: LineId | null;
   action: CoverageAction | null;
   originalMessage: string;
+  /** Set when the message is a button label, so there is nothing to translate. */
+  skipBrief?: boolean;
 };
 
 export type Reply =
@@ -130,6 +138,7 @@ export type Reply =
   | { kind: "payment"; carrier: string | null }
   | { kind: "status" }
   | { kind: "fallback"; originalMessage: string }
+  | { kind: "unavailable"; originalMessage: string }
   | { kind: "handoff"; handoffId: string; phone: string }
   | { kind: "needContact"; pending: PendingHandoff };
 

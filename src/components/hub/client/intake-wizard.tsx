@@ -92,13 +92,23 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
     setItems((prev) =>
       fresh.map((entry) => {
         const kept = prev.find((old) => old.id === entry.id);
-        return kept ? { ...entry, received: kept.received, fileName: kept.fileName, value: kept.value } : entry;
+        // Keep what the client already provided; take the requirement itself from the new list.
+        return kept ? { ...kept, ...entry, received: kept.received } : entry;
       }),
     );
   };
 
   const progress = completion(items);
   const [saving, setSaving] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const checklistEditor = (
+    <ChecklistEditor
+      items={items}
+      onChange={setItems}
+      clientName={currentClient?.fullName ?? contact.fullName}
+      onBusyChange={setChecking}
+    />
+  );
 
   const saveFailed = (error: unknown) => {
     console.error("Intake could not be saved", error);
@@ -184,12 +194,16 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
           <CardTitle className="text-xl">{t("intake.resumeTitle", { id: resume.id })}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <ChecklistEditor items={items} onChange={setItems} />
+          {checklistEditor}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={onReset}>
               {t("common.cancel")}
             </Button>
-            <Button variant="crimson" disabled={saving} onClick={() => void saveResume()}>
+            <Button
+              variant="crimson"
+              disabled={saving || checking}
+              onClick={() => void saveResume()}
+            >
               {t("intake.resumeSave")}
             </Button>
           </div>
@@ -301,7 +315,7 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
           </div>
         ) : null}
 
-        {step === 2 ? <ChecklistEditor items={items} onChange={setItems} /> : null}
+        {step === 2 ? checklistEditor : null}
 
         {step === 3 && line && requestType ? (
           <div className="space-y-5">
@@ -388,12 +402,16 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
         ) : null}
 
         <div className="flex items-center justify-between gap-2 border-t pt-4">
-          <Button variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>
+          <Button
+            variant="ghost"
+            disabled={step === 0 || checking}
+            onClick={() => setStep(step - 1)}
+          >
             <ArrowLeft />
             {t("intake.back")}
           </Button>
           {step === 2 ? (
-            <Button onClick={() => setStep(3)}>
+            <Button disabled={checking} onClick={() => setStep(3)}>
               {t("intake.next")}
               <ArrowRight />
             </Button>

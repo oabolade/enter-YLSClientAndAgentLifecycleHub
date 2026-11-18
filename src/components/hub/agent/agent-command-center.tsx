@@ -365,7 +365,10 @@ const PrepDrawer = ({ selection }: { selection: NonNullable<Selection> }) => {
         ) : null}
       </Section>
 
-      <Section icon={MessageCircleReply} title="AI English Summary (simulated)">
+      <Section
+        icon={MessageCircleReply}
+        title={handoff ? "AI English Summary" : "Intake Summary"}
+      >
         <p className="text-sm">{handoff ? handoff.englishSummary : intakeSummary}</p>
         {handoff ? (
           <div className="rounded-lg bg-secondary p-3">
@@ -400,10 +403,26 @@ const PrepDrawer = ({ selection }: { selection: NonNullable<Selection> }) => {
                           {entry.fileName}
                         </span>
                       ) : null}
+                      {entry.aiVerified === true ? (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          AI check: {entry.aiNote || "matched to this item."}
+                        </span>
+                      ) : entry.aiVerified === false ? (
+                        <span className="block text-xs font-medium text-warning-foreground">
+                          Not confirmed by AI; the client chose this item.
+                          {entry.aiNote ? ` AI note: ${entry.aiNote}` : ""}
+                        </span>
+                      ) : null}
                     </span>
                   </li>
                 ))}
             </ul>
+            {submission.items.some((entry) => entry.filePath) ? (
+              <p className="text-xs text-muted-foreground">
+                AI checks can be wrong. Uploaded files are kept in the private document store and
+                cannot be opened from this screen yet.
+              </p>
+            ) : null}
             <Button
               variant="crimson"
               className="h-auto w-full whitespace-normal py-2"

@@ -1,0 +1,32 @@
+-- Private store for client intake documents. Clients may add files; nobody can read,
+-- change or delete them through the public key. Only backend functions read them.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'yls-client-documents',
+  'yls-client-documents',
+  false,
+  8 * 1024 * 1024,
+  array['image/jpeg', 'image/png', 'image/webp', 'application/pdf']::text[]
+)
+on conflict (id) do nothing;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'yls_client_documents_upload'
+  ) then
+    execute $policy$
+    create policy "yls_client_documents_upload"
+    on storage.objects
+    for insert
+    to anon, authenticated
+    with check (
+      bucket_id = 'yls-client-documents'
+      and name ~ '^intake/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp|pdf)$'
+    )
+    $policy$;
+  end if;
+end $$;
