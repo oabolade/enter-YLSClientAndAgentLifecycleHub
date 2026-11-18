@@ -154,10 +154,12 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (ownedError) throw new HttpError(500, "Access could not be checked");
     if (!owned) {
-      const email = user.email_confirmed_at ? (user.email ?? "").toLowerCase() : "";
-      const { data: staff, error: staffError } = email
-        ? await supabase.from("yls_staff").select("email").eq("email", email).maybeSingle()
-        : { data: null, error: null };
+      // Staff access belongs to an approved account, never to an email address alone.
+      const { data: staff, error: staffError } = await supabase
+        .from("yls_staff")
+        .select("email")
+        .eq("user_id", user.id)
+        .maybeSingle();
       if (staffError) throw new HttpError(500, "Access could not be checked");
       if (!staff) {
         console.error("Nudge refused: client record belongs to another account");

@@ -3476,14 +3476,17 @@ export type Database = {
         Row: {
           added_at: string
           email: string
+          user_id: string | null
         }
         Insert: {
           added_at?: string
           email: string
+          user_id?: string | null
         }
         Update: {
           added_at?: string
           email?: string
+          user_id?: string | null
         }
         Relationships: []
       }

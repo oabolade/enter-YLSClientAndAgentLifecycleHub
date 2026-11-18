@@ -1,0 +1,26 @@
+-- Staff access is now granted to a specific account, not to an email address.
+-- Confirmation emails are not being delivered, so accounts are no longer confirmed by
+-- email and an address alone proves nothing. A staff row grants access only once it is
+-- linked to an account; rows without an account are people still waiting for approval.
+-- No rows are removed.
+alter table public.yls_staff
+  add column user_id uuid unique references auth.users(id) on delete set null;
+
+create or replace function public.yls_is_staff()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.yls_staff s where s.user_id = (select auth.uid())
+  );
+$$;
+
+-- Approve the owner's existing account.
+update public.yls_staff s
+set user_id = u.id
+from auth.users u
+where s.email = 'sileabolade@gmail.com'
+  and lower(u.email) = s.email;

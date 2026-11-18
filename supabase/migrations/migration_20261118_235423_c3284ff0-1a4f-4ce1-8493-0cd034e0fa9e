@@ -1,0 +1,6 @@
+-- The owner's account was created while email confirmation was still required and the
+-- confirmation email never arrived. Mark that one account as confirmed so it can sign in.
+update auth.users
+set email_confirmed_at = now()
+where lower(email) = 'sileabolade@gmail.com'
+  and email_confirmed_at is null;

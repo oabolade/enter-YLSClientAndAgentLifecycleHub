@@ -9,7 +9,8 @@ Only the first section is new and needs your approval. The second section record
 ### Decisions you confirmed
 
 - People sign in with an email address and password.
-- Staff access goes to the email addresses you give me. Adding or removing someone later means asking me.
+- Staff access goes to the accounts you ask me to approve. Adding or removing someone later means asking me.
+- **Changed after testing:** confirmation emails did not arrive, so you chose to drop the email step. An account works straight after sign-up, and staff access is granted to a specific account once you tell me that person has signed up.
 - The persona switcher and the three sample clients stay, as a demo mode for staff only.
 - A visitor can do nothing before creating an account.
 
@@ -17,8 +18,8 @@ Only the first section is new and needs your approval. The second section record
 
 - [x] Opening the hub shows a sign-in screen instead of the portal. It has "Sign in" and "Create account", and a language selector, so the screen works in all five languages.
 - [x] Creating an account asks for full name, phone number, email, password and preferred language. This replaces the contact form that a New Guest Visitor filled in before.
-- [x] A new account must confirm its email address through a link sent to that inbox before the first sign-in. This is what makes the staff list safe: nobody can register with someone else's address. Signing in before confirming is refused with a message to check the inbox, and an option to send the link again.
-- [x] "Forgot password" sends a link to set a new password.
+- [x] A new account works straight after sign-up, with no email step. An email address is therefore not proven to belong to the person who registered it, which is why staff access is granted per account and never by address alone.
+- [ ] "Forgot password" sends a link to set a new password. Built, but it relies on the same email delivery that failed for confirmation, so it is not dependable yet.
 - [x] A person stays signed in on their device until they choose Sign out. The top bar shows their name and a Sign out button.
 - [x] Wrong password, an email that already has an account, or a weak password each show a plain message in the selected language.
 
@@ -32,7 +33,7 @@ Only the first section is new and needs your approval. The second section record
 
 ### What staff see
 
-- [ ] An account whose confirmed email is on the staff list opens on the Agent Command Center, with all intakes, handoffs, KPIs and reminders as today.
+- [ ] An account approved as staff opens on the Agent Command Center, with all intakes, handoffs, KPIs and reminders as today. Until it is approved, a staff member's account sees the Client Portal like any client.
 - [ ] Staff keep the view switcher and can open the Client Portal as Mei-Ling Chen, Minh Tran or Roberto Santos for demos and training. Anything done in demo mode is saved against that sample client, as it is today.
 - [ ] The "New Guest Visitor" option is removed from the persona list. Creating a real account now shows that experience.
 - [ ] Only staff can send reminders.
@@ -50,8 +51,8 @@ Only the first section is new and needs your approval. The second section record
 
 ### What I need from you
 
-- **The staff email addresses.** Until I have them, no account has staff access and nobody can open the Command Center.
-- **One real sign-up with your own address.** I cannot receive email, so I cannot confirm that the confirmation and password links arrive. If they prove unreliable, I will come back to you before changing the confirmation rule.
+- **Tell me when each staff member has signed up.** I approve that specific account; until then it has client access only.
+- **A working email sender before real clients use the hub.** Without it, addresses stay unproven and password reset is not dependable.
 
 ### Limitations and exclusions
 
