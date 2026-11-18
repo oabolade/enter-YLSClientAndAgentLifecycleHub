@@ -367,7 +367,7 @@ const PrepDrawer = ({ selection }: { selection: NonNullable<Selection> }) => {
 
       <Section
         icon={MessageCircleReply}
-        title={handoff ? "AI English Summary" : "Intake Summary"}
+        title={handoff ? "English Summary" : "Intake Summary"}
       >
         <p className="text-sm">{handoff ? handoff.englishSummary : intakeSummary}</p>
         {handoff ? (
