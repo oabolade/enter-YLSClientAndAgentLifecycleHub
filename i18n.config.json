@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "fallbackLng": "en",
+  "languages": [
+    { "code": "en", "label": "English", "detect": ["en"], "dir": "ltr" },
+    { "code": "zh-CN", "label": "中文 (Mandarin)", "detect": ["zh", "zh-CN", "zh-Hans"], "dir": "ltr" },
+    { "code": "zh-HK", "label": "廣東話 (Cantonese)", "detect": ["zh-HK", "yue", "zh-Hant", "zh-TW"], "dir": "ltr" },
+    { "code": "vi", "label": "Tiếng Việt", "detect": ["vi"], "dir": "ltr" },
+    { "code": "tl", "label": "Filipino", "detect": ["tl", "fil"], "dir": "ltr" }
+  ]
+}

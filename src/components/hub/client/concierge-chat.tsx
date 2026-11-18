@@ -1,0 +1,520 @@
+import { useEffect, useRef, useState } from "react";
+import { Download, Headset, Loader2, PhoneCall, SendHorizontal, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { fallbackLng, normalizeLanguage } from "@/i18n/config";
+import { buildChecklist, completion } from "@/lib/hub/checklists";
+import { useHub } from "@/lib/hub/hub-context";
+import { docLabel, lineLabel } from "@/lib/hub/labels";
+import { downloadSampleDocument } from "@/lib/hub/sample-pdf";
+import { classify, classifyChip, relatedPolicy, type Triage } from "@/lib/hub/triage";
+import type { ChatMessage, ChipId, LangCode, PendingHandoff, Reply } from "@/lib/hub/types";
+import { cn } from "@/lib/utils";
+
+const isCoi = (name: string) => /coi|certificate/i.test(name);
+const uid = () => crypto.randomUUID();
+
+export const ConciergeChat = () => {
+  const { t, i18n } = useTranslation();
+  const { chat, pushChat, replaceChatMessage, currentClient, createHandoff, recordAutoResolved } =
+    useHub();
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [accepted, setAccepted] = useState<string[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [chat.length, busy]);
+
+  const language = (normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ??
+    fallbackLng) as LangCode;
+
+  const chips: { id: ChipId; label: string }[] = [
+    { id: "addDriver", label: t("chat.chip.addDriver") },
+    { id: "downloadCoi", label: t("chat.chip.downloadCoi") },
+    { id: "urgentCommercial", label: t("chat.chip.urgentCommercial") },
+    { id: "status", label: t("chat.chip.status") },
+  ];
+
+  const saveFailed = (error: unknown) => {
+    console.error("Concierge request could not be saved", error);
+    toast.error(t("common.saveError"));
+  };
+
+  /** The handoff reply is only shown once the agent queue has actually received it. */
+  const startHandoff = async (pending: PendingHandoff): Promise<Reply> => {
+    if (!currentClient) return { kind: "needContact", pending };
+    const handoff = await createHandoff({
+      client: currentClient,
+      contactName: currentClient.fullName,
+      contactPhone: currentClient.phone,
+      language,
+      ...pending,
+    });
+    return { kind: "handoff", handoffId: handoff.id, phone: currentClient.phone };
+  };
+
+  const respond = async (triage: Triage, originalMessage: string): Promise<Reply> => {
+    if (triage.tier === 2) {
+      return startHandoff({
+        reason: triage.reason,
+        line: triage.line,
+        action: triage.action,
+        originalMessage,
+      });
+    }
+    const resolved = (reply: Reply): Reply => {
+      recordAutoResolved(language);
+      return reply;
+    };
+    switch (triage.intent) {
+      case "docs":
+        return resolved({
+          kind: "docs",
+          line: triage.addDriver ? "auto" : (triage.line ?? currentClient?.policies[0]?.line ?? null),
+          addDriver: triage.addDriver,
+        });
+      case "download": {
+        const policy = currentClient?.policies.find((entry) =>
+          triage.wantsCoi ? entry.documents.some(isCoi) : entry.documents.length > 0,
+        );
+        if (!policy) return { kind: "noDocument", originalMessage };
+        return resolved({
+          kind: "download",
+          policyNumber: policy.policyNumber,
+          documents: triage.wantsCoi ? policy.documents.filter(isCoi) : policy.documents,
+        });
+      }
+      case "contact":
+        return resolved({ kind: "contact" });
+      case "payment":
+        return resolved({
+          kind: "payment",
+          carrier: relatedPolicy(currentClient, triage.line)?.carrier ?? null,
+        });
+      case "status":
+        return resolved({ kind: "status" });
+      case "fallback":
+        return { kind: "fallback", originalMessage };
+    }
+  };
+
+  const deliver = async (userMessage: ChatMessage, build: () => Promise<Reply>) => {
+    pushChat([userMessage]);
+    setBusy(true);
+    try {
+      const reply = await build();
+      pushChat([{ id: uid(), role: "assistant", reply }]);
+    } catch (error) {
+      saveFailed(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const send = (text: string, chip?: ChipId) => {
+    const trimmed = text.trim();
+    if (!trimmed || busy) return;
+    setDraft("");
+    void deliver(
+      chip ? { id: uid(), role: "user", chip } : { id: uid(), role: "user", text: trimmed },
+      () => respond(chip ? classifyChip(chip) : classify(trimmed), trimmed),
+    );
+  };
+
+  const talkToAgent = () => {
+    if (busy) return;
+    const label = t("chat.talkToAgent");
+    void deliver({ id: uid(), role: "user", text: label }, () =>
+      startHandoff({ reason: "human_request", line: null, action: null, originalMessage: label }),
+    );
+  };
+
+  const acceptOffer = async (messageId: string, pending: PendingHandoff) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const reply = await startHandoff(pending);
+      setAccepted((prev) => [...prev, messageId]);
+      pushChat([{ id: uid(), role: "assistant", reply }]);
+    } catch (error) {
+      saveFailed(error);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const completeGuestHandoff = async (
+    messageId: string,
+    pending: PendingHandoff,
+    name: string,
+    phone: string,
+  ) => {
+    try {
+      const handoff = await createHandoff({
+        client: null,
+        contactName: name,
+        contactPhone: phone,
+        language,
+        ...pending,
+      });
+      replaceChatMessage(messageId, {
+        id: messageId,
+        role: "assistant",
+        reply: { kind: "handoff", handoffId: handoff.id, phone },
+      });
+    } catch (error) {
+      saveFailed(error);
+    }
+  };
+
+  const lastHandoff = [...chat]
+    .reverse()
+    .find((entry) => entry.role === "assistant" && entry.reply.kind === "handoff");
+  const bannerPhone =
+    lastHandoff?.role === "assistant" && lastHandoff.reply.kind === "handoff"
+      ? lastHandoff.reply.phone
+      : null;
+
+  return (
+    <Card className="shadow-card">
+      <CardHeader className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-2xl">
+            <Sparkles className="h-5 w-5 text-crimson" aria-hidden />
+            {t("chat.title")}
+          </CardTitle>
+          <Badge variant="muted">{t("chat.simulated")}</Badge>
+        </div>
+        <p className="text-sm text-muted-foreground">{t("chat.subtitle")}</p>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {bannerPhone ? (
+          <div
+            role="status"
+            className="flex animate-fade-up items-start gap-3 rounded-xl border border-crimson/30 bg-crimson-soft p-4"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-crimson text-crimson-foreground">
+              <PhoneCall className="h-4 w-4" aria-hidden />
+            </span>
+            <div className="space-y-0.5">
+              <p className="text-sm font-semibold text-crimson">{t("chat.banner.title")}</p>
+              <p className="text-sm">{t("chat.banner.body")}</p>
+              <p className="text-xs text-muted-foreground">
+                {t("chat.banner.callback", { phone: bannerPhone })}
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        <div
+          ref={scrollRef}
+          className="h-[380px] space-y-3 overflow-y-auto rounded-xl border bg-secondary/50 p-3 sm:p-4"
+        >
+          <Bubble role="assistant">{t("chat.reply.greeting")}</Bubble>
+          {chat.map((message) =>
+            message.role === "user" ? (
+              <Bubble key={message.id} role="user">
+                {message.chip
+                  ? chips.find((chip) => chip.id === message.chip)?.label
+                  : message.text}
+              </Bubble>
+            ) : (
+              <Bubble
+                key={message.id}
+                role="assistant"
+                highlight={message.reply.kind === "handoff"}
+              >
+                <ReplyContent
+                  reply={message.reply}
+                  offerDisabled={busy || accepted.includes(message.id)}
+                  onAcceptOffer={(pending) => void acceptOffer(message.id, pending)}
+                  onGuestContact={(pending, name, phone) =>
+                    void completeGuestHandoff(message.id, pending, name, phone)
+                  }
+                />
+              </Bubble>
+            ),
+          )}
+          {busy ? (
+            <Bubble role="assistant">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+            </Bubble>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {chips.map((chip) => (
+            <Button
+              key={chip.id}
+              type="button"
+              variant="chip"
+              size="sm"
+              className="h-auto whitespace-normal py-1.5 text-left"
+              disabled={busy}
+              onClick={() => send(chip.label, chip.id)}
+            >
+              {chip.label}
+            </Button>
+          ))}
+        </div>
+
+        <form
+          className="flex flex-col gap-2 sm:flex-row"
+          onSubmit={(event) => {
+            event.preventDefault();
+            send(draft);
+          }}
+        >
+          <Input
+            value={draft}
+            maxLength={1000}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder={t("chat.placeholder")}
+            aria-label={t("chat.placeholder")}
+          />
+          <div className="flex gap-2">
+            <Button type="submit" className="flex-1 sm:flex-none" disabled={busy}>
+              <SendHorizontal />
+              {t("chat.send")}
+            </Button>
+            <Button
+              type="button"
+              variant="crimson"
+              className="flex-1 sm:flex-none"
+              disabled={busy}
+              onClick={talkToAgent}
+            >
+              <Headset />
+              {t("chat.talkToAgent")}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+};
+
+type BubbleProps = {
+  role: "user" | "assistant";
+  highlight?: boolean;
+  children: React.ReactNode;
+};
+
+const Bubble = ({ role, highlight, children }: BubbleProps) => (
+  <div className={cn("flex", role === "user" ? "justify-end" : "justify-start")}>
+    <div
+      className={cn(
+        "max-w-[88%] animate-fade-up space-y-2 rounded-2xl px-4 py-2.5 text-sm sm:max-w-[75%]",
+        role === "user"
+          ? "rounded-br-sm bg-primary text-primary-foreground"
+          : "rounded-bl-sm border bg-card",
+        highlight && "border-crimson/40",
+      )}
+    >
+      {children}
+    </div>
+  </div>
+);
+
+type ReplyContentProps = {
+  reply: Reply;
+  offerDisabled: boolean;
+  onAcceptOffer: (pending: PendingHandoff) => void;
+  onGuestContact: (pending: PendingHandoff, name: string, phone: string) => void;
+};
+
+const ReplyContent = ({ reply, offerDisabled, onAcceptOffer, onGuestContact }: ReplyContentProps) => {
+  const { t } = useTranslation();
+  const { currentClient, submissions, setClientTab } = useHub();
+
+  const intakeButton = (
+    <Button size="sm" variant="outline" onClick={() => setClientTab("intake")}>
+      {t("chat.openIntake")}
+    </Button>
+  );
+  const offerButton = (pending: PendingHandoff) => (
+    <Button
+      size="sm"
+      variant="crimson"
+      disabled={offerDisabled}
+      onClick={() => onAcceptOffer(pending)}
+    >
+      {t("chat.handoffOffer")}
+    </Button>
+  );
+
+  switch (reply.kind) {
+    case "greeting":
+      return <p>{t("chat.reply.greeting")}</p>;
+    case "docs": {
+      if (!reply.line) {
+        return (
+          <>
+            <p>{t("chat.reply.docsGeneric")}</p>
+            {intakeButton}
+          </>
+        );
+      }
+      const required = buildChecklist(reply.line, "new_quote").filter((entry) => !entry.optional);
+      return (
+        <>
+          <p>
+            {reply.addDriver
+              ? t("chat.reply.docsAddDriver")
+              : t("chat.reply.docsIntro", { line: lineLabel(t, reply.line) })}
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            {reply.addDriver ? (
+              <>
+                <li>{t("chat.reply.newDriverLicense")}</li>
+                <li>{docLabel(t, "auto_declarations")}</li>
+              </>
+            ) : (
+              required.map((entry) => <li key={entry.id}>{docLabel(t, entry.id)}</li>)
+            )}
+          </ul>
+          <p>{t("chat.reply.docsOutro")}</p>
+          {intakeButton}
+        </>
+      );
+    }
+    case "download": {
+      const policy = currentClient?.policies.find(
+        (entry) => entry.policyNumber === reply.policyNumber,
+      );
+      return (
+        <>
+          <p>{t("chat.reply.download", { policy: reply.policyNumber })}</p>
+          <div className="flex flex-col items-start gap-2">
+            {reply.documents.map((name) => (
+              <Button
+                key={name}
+                size="sm"
+                variant="outline"
+                className="h-auto max-w-full whitespace-normal py-1.5 text-left"
+                disabled={!currentClient || !policy}
+                onClick={() => {
+                  if (currentClient && policy) downloadSampleDocument(currentClient, policy, name);
+                }}
+              >
+                <Download />
+                <span className="break-all">{name}</span>
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">{t("vault.sampleNote")}</p>
+        </>
+      );
+    }
+    case "noDocument":
+      return (
+        <>
+          <p>{t("chat.reply.noDocument")}</p>
+          {offerButton({
+            reason: "document_request",
+            line: null,
+            action: null,
+            originalMessage: reply.originalMessage,
+          })}
+        </>
+      );
+    case "contact":
+      return <p>{t("chat.reply.contact")}</p>;
+    case "payment":
+      return (
+        <p>
+          {reply.carrier
+            ? t("chat.reply.payment", { carrier: reply.carrier })
+            : t("chat.reply.paymentGeneric")}
+        </p>
+      );
+    case "status": {
+      const mine = submissions.filter((entry) => entry.clientId === currentClient?.id);
+      const open = mine.find((entry) => completion(entry.items).missing.length > 0);
+      if (open) {
+        return (
+          <>
+            <p>{t("chat.reply.statusOpen", { id: open.id, pct: open.completionPct })}</p>
+            <ul className="list-disc space-y-1 pl-5">
+              {completion(open.items).missing.map((entry) => (
+                <li key={entry.id}>{docLabel(t, entry.id)}</li>
+              ))}
+            </ul>
+          </>
+        );
+      }
+      return (
+        <p>
+          {mine[0]
+            ? t("chat.reply.statusComplete", { id: mine[0].id })
+            : t("chat.reply.statusNone")}
+        </p>
+      );
+    }
+    case "fallback":
+      return (
+        <>
+          <p>{t("chat.reply.fallback")}</p>
+          {offerButton({
+            reason: "unanswered",
+            line: null,
+            action: null,
+            originalMessage: reply.originalMessage,
+          })}
+        </>
+      );
+    case "handoff":
+      return <p>{t("chat.reply.handoff", { id: reply.handoffId })}</p>;
+    case "needContact":
+      return (
+        <GuestContactForm onSubmit={(name, phone) => onGuestContact(reply.pending, name, phone)} />
+      );
+  }
+};
+
+const GuestContactForm = ({ onSubmit }: { onSubmit: (name: string, phone: string) => void }) => {
+  const { t } = useTranslation();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (name.trim() && phone.trim()) onSubmit(name.trim(), phone.trim());
+      }}
+    >
+      <p>{t("chat.reply.needContact")}</p>
+      <Input
+        value={name}
+        maxLength={120}
+        onChange={(event) => setName(event.target.value)}
+        placeholder={t("intake.guestName")}
+        aria-label={t("intake.guestName")}
+        required
+      />
+      <Input
+        value={phone}
+        type="tel"
+        maxLength={40}
+        onChange={(event) => setPhone(event.target.value)}
+        placeholder={t("intake.guestPhone")}
+        aria-label={t("intake.guestPhone")}
+        required
+      />
+      <Button type="submit" size="sm" variant="crimson">
+        {t("chat.contactSubmit")}
+      </Button>
+    </form>
+  );
+};

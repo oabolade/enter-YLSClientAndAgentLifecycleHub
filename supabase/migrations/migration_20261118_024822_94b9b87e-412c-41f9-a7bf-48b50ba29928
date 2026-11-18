@@ -1,0 +1,112 @@
+create sequence public.yls_client_seq start 104;
+create sequence public.yls_submission_seq start 502;
+create sequence public.yls_handoff_seq start 303;
+create sequence public.yls_reminder_seq start 101;
+
+create table public.yls_clients (
+  id text primary key default ('CLT-' || nextval('public.yls_client_seq')),
+  full_name text not null check (char_length(full_name) between 1 and 120),
+  preferred_language text not null check (preferred_language in ('en','zh-CN','zh-HK','vi','tl')),
+  phone text not null check (char_length(phone) between 1 and 40),
+  email text not null check (char_length(email) between 3 and 200),
+  is_persona boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table public.yls_policies (
+  policy_number text primary key,
+  client_id text not null references public.yls_clients(id),
+  line text not null check (line in ('auto','home','medicare','commercial','life')),
+  carrier text not null,
+  status text not null check (status in ('active','renewal_review')),
+  renewal_date date not null,
+  premium_monthly numeric(10,2) not null,
+  deductible text not null,
+  documents jsonb not null default '[]'::jsonb
+);
+
+create table public.yls_submissions (
+  id text primary key default ('SUB-' || nextval('public.yls_submission_seq')),
+  client_id text not null references public.yls_clients(id),
+  lines text[] not null,
+  request_type text check (request_type in ('new_quote','policy_change','renewal')),
+  seed_title text,
+  items jsonb not null,
+  completion_pct integer not null check (completion_pct between 0 and 100),
+  status text not null check (status in ('action_required','complete')),
+  is_sample boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table public.yls_handoffs (
+  id text primary key default ('HND-' || nextval('public.yls_handoff_seq')),
+  client_id text references public.yls_clients(id),
+  contact_name text not null check (char_length(contact_name) between 1 and 120),
+  contact_phone text not null check (char_length(contact_phone) between 1 and 40),
+  language text not null check (language in ('en','zh-CN','zh-HK','vi','tl')),
+  reason text not null check (reason in ('immediate_coverage_change','commercial_complex','medicare_comparison','frustrated','human_request','unanswered','document_request','callback_request')),
+  line text check (line in ('auto','home','medicare','commercial','life')),
+  original_message text not null check (char_length(original_message) <= 2000),
+  english_summary text not null check (char_length(english_summary) <= 2000),
+  is_sample boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table public.yls_reminders (
+  id text primary key default ('REM-' || nextval('public.yls_reminder_seq')),
+  submission_id text not null references public.yls_submissions(id),
+  client_id text not null references public.yls_clients(id),
+  language text not null check (language in ('en','zh-CN','zh-HK','vi','tl')),
+  message text not null check (char_length(message) <= 2000),
+  english_reference text not null check (char_length(english_reference) <= 2000),
+  sent_at timestamptz not null default now()
+);
+
+create table public.yls_concierge_events (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null check (kind in ('auto_resolved')),
+  language text not null check (language in ('en','zh-CN','zh-HK','vi','tl')),
+  created_at timestamptz not null default now()
+);
+
+create index yls_policies_client_idx on public.yls_policies(client_id);
+create index yls_submissions_client_idx on public.yls_submissions(client_id);
+create index yls_handoffs_client_idx on public.yls_handoffs(client_id);
+create index yls_reminders_submission_idx on public.yls_reminders(submission_id);
+
+alter table public.yls_clients enable row level security;
+alter table public.yls_policies enable row level security;
+alter table public.yls_submissions enable row level security;
+alter table public.yls_handoffs enable row level security;
+alter table public.yls_reminders enable row level security;
+alter table public.yls_concierge_events enable row level security;
+
+-- Demo access model: the hub has no sign-in yet, so visitors may read the sample data
+-- and add new records, but can never delete rows or alter clients, policies, handoffs or reminders.
+create policy "yls_clients_read" on public.yls_clients for select to anon, authenticated using (true);
+create policy "yls_clients_insert_guest" on public.yls_clients for insert to anon, authenticated with check (is_persona = false);
+
+create policy "yls_policies_read" on public.yls_policies for select to anon, authenticated using (true);
+
+create policy "yls_submissions_read" on public.yls_submissions for select to anon, authenticated using (true);
+create policy "yls_submissions_insert" on public.yls_submissions for insert to anon, authenticated with check (is_sample = false);
+create policy "yls_submissions_update" on public.yls_submissions for update to anon, authenticated using (true) with check (true);
+
+create policy "yls_handoffs_read" on public.yls_handoffs for select to anon, authenticated using (true);
+create policy "yls_handoffs_insert" on public.yls_handoffs for insert to anon, authenticated with check (is_sample = false);
+
+create policy "yls_reminders_read" on public.yls_reminders for select to anon, authenticated using (true);
+create policy "yls_reminders_insert" on public.yls_reminders for insert to anon, authenticated with check (true);
+
+create policy "yls_concierge_events_read" on public.yls_concierge_events for select to anon, authenticated using (true);
+create policy "yls_concierge_events_insert" on public.yls_concierge_events for insert to anon, authenticated with check (true);
+
+grant usage on sequence public.yls_client_seq, public.yls_submission_seq, public.yls_handoff_seq, public.yls_reminder_seq to anon, authenticated;
+grant select, insert on public.yls_clients, public.yls_handoffs, public.yls_reminders, public.yls_concierge_events to anon, authenticated;
+grant select on public.yls_policies to anon, authenticated;
+grant select, insert, update on public.yls_submissions to anon, authenticated;
+
+alter publication supabase_realtime add table public.yls_submissions;
+alter publication supabase_realtime add table public.yls_handoffs;
+alter publication supabase_realtime add table public.yls_reminders;
+alter publication supabase_realtime add table public.yls_concierge_events;
