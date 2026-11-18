@@ -1,93 +1,126 @@
 # YLS 360° Client & Agent Hub — Build Plan
 
-## What you will get
+Only the first section is new and needs your approval. The second section records what is already built, updated for the changes made since the original plan.
 
-One responsive web application that covers the three client moments for YLS Financial & Insurance Services, with both sides visible in the same demo:
+## New: Sign-in and private access
 
-- **Before:** guided multilingual intake with a document checklist.
-- **During:** a bilingual concierge chat that hands urgent or complex requests to a licensed agent.
-- **After:** a self-service policy vault with renewal countdowns and coverage suggestions.
+**Result:** nobody can see or do anything in the hub without signing in. A client sees only their own records. Only named YLS staff can open the Agent Command Center.
 
-Everything a client does in the Client Portal is saved to one shared database and shows up in the YLS Agent Command Center.
+### Decisions you confirmed
 
-The look is clean and trustworthy: deep navy (#0F2942), warm crimson accent (#A61C3C), slate gray and crisp white. Amber is used only for "missing" and "renewing soon" warnings. It works on phone, tablet and desktop.
+- People sign in with an email address and password.
+- Staff access goes to the email addresses you give me. Adding or removing someone later means asking me.
+- The persona switcher and the three sample clients stay, as a demo mode for staff only.
+- A visitor can do nothing before creating an account.
 
-## Decisions you confirmed
+### Signing in
 
-- **AI is simulated for now and ready for Covey.** Chat replies, document checks and English summaries follow the rules in your knowledge file. Each of the three specialist agents has one defined hand-over point, so connecting Covey later replaces the simulation without changing any screen.
-- **Uploaded files are not kept.** The hub records the file name and which checklist item it satisfies.
+- [ ] Opening the hub shows a sign-in screen instead of the portal. It has "Sign in" and "Create account", and a language selector, so the screen works in all five languages.
+- [ ] Creating an account asks for full name, phone number, email, password and preferred language. This replaces the contact form that a New Guest Visitor filled in before.
+- [ ] A new account must confirm its email address through a link sent to that inbox before the first sign-in. This is what makes the staff list safe: nobody can register with someone else's address. Signing in before confirming is refused with a message to check the inbox, and an option to send the link again.
+- [ ] "Forgot password" sends a link to set a new password.
+- [ ] A person stays signed in on their device until they choose Sign out. The top bar shows their name and a Sign out button.
+- [ ] Wrong password, an email that already has an account, or a weak password each show a plain message in the selected language.
+
+### What a client sees
+
+- [ ] After signing in, a client lands in the Client Portal in their preferred language, with only their own policies, submissions and reminders. They see no view switcher and no persona list.
+- [ ] A new account starts with an empty vault and can start an intake, upload documents and use the concierge straight away. Intakes and handoffs use the name and phone number from the account, so the client is not asked again.
+- [ ] A client cannot read or change another client's records. This is enforced where the data is stored, not only hidden on screen.
+- [ ] An uploaded document belongs to the account that uploaded it. The document check reads only that account's own files.
+- [ ] The "demo with sample data" footer note no longer appears for clients. They still see the notice that AI features can make mistakes.
+
+### What staff see
+
+- [ ] An account whose confirmed email is on the staff list opens on the Agent Command Center, with all intakes, handoffs, KPIs and reminders as today.
+- [ ] Staff keep the view switcher and can open the Client Portal as Mei-Ling Chen, Minh Tran or Roberto Santos for demos and training. Anything done in demo mode is saved against that sample client, as it is today.
+- [ ] The "New Guest Visitor" option is removed from the persona list. Creating a real account now shows that experience.
+- [ ] Only staff can send reminders.
+- [ ] A person taken off the staff list loses access to client records straight away.
+
+### AI agents
+
+- [ ] Triage, the handoff summary, the document check and the renewal suggestion answer only signed-in people. A request without an account is refused, so the link alone can no longer use your AI credits.
+- [ ] A client gets renewal suggestions only for their own policies.
+
+### Existing data
+
+- [ ] The three sample clients and their sample records stay as they are.
+- [ ] The handoffs, the submission, the reminder and the four files created during testing stay, and become visible to staff only. Nothing is deleted.
+
+### What I need from you
+
+- **The staff email addresses.** Until I have them, no account has staff access and nobody can open the Command Center.
+- **One real sign-up with your own address.** I cannot receive email, so I cannot confirm that the confirmation and password links arrive. If they prove unreliable, I will come back to you before changing the confirmation rule.
+
+### Limitations and exclusions
+
+- A new client account is not linked to any policies. There is no screen for staff to add policies to a client, so a real client's vault stays empty until that is built. Only the three sample clients have policies.
+- Staff still cannot open uploaded files from the Command Center. They see the file name and the AI note.
+- Not included: a staff management screen, Google sign-in, two-step verification, and saving chat history between visits.
+
+## Already built
+
+### Decisions in force
+
+- **The three specialist agents run inside the hub on live AI.** Covey offers no outside connection, so triage, the handoff summary, the document check and the renewal suggestion were built in the app from your YLS rules document. The mandatory handoff rules stay hard-coded on top of the AI.
+- **Uploaded files are stored privately** so the document check can read them. This replaced the earlier decision to record file names only.
 - **Reminders stay inside the app.** No real email or text message is sent.
 
-## Top navigation bar
+### Top navigation bar
 
-- [ ] A View Switcher at the very top toggles between **Client Portal View** and **YLS Agent Command Center**. It keeps your place in each view when you switch back.
-- [ ] In Client View, a Persona Quick-Select offers Mei-Ling Chen (Mandarin), Minh Tran (Vietnamese), Roberto Santos (Filipino) and New Guest Visitor. Choosing a persona loads that client's policies and submissions and switches the language to their preferred one.
-- [ ] A Language Selector offers English, 中文 (Mandarin), 廣東話 (Cantonese), Tiếng Việt and Filipino. It translates all labels, checklists, chat replies and reminders in the Client Portal, and can override the persona's default at any time.
-- [ ] The Agent Command Center is always in English, following your core rule that internal summaries are in English.
+- [x] A View Switcher toggles between Client Portal View and YLS Agent Command Center, keeping your place in each view.
+- [x] A Persona Quick-Select offers Mei-Ling Chen (Mandarin), Minh Tran (Vietnamese), Roberto Santos (Filipino) and New Guest Visitor, loading that client's records and preferred language.
+- [x] A Language Selector offers English, 中文 (Mandarin), 廣東話 (Cantonese), Tiếng Việt and Filipino for the whole Client Portal.
+- [x] The Agent Command Center is always in English.
 
-## Client Portal
+### Client Portal
 
-### Tab 1 — Guided Intake & Document Upload
+**Tab 1 — Guided Intake & Document Upload**
 
-- [ ] A step-by-step wizard: choose an Insurance Line (Auto, Home, Medicare/Medical, Commercial, Life), choose a Request Type (New Quote, Policy Change, Renewal), complete the checklist, then review and submit.
-- [ ] The required checklist changes with the selected line and request type, using the rules in your knowledge file. For example, the current declarations page is only required when switching or renewing, and three years of loss runs only for a commercial renewal.
-- [ ] Items that are information rather than files (garaging address, zip code, physician name, roof year, business name and FEIN, revenue estimate) are typed in and count toward completion.
-- [ ] Dropping a file into the upload area shows a short "verifying" moment, then checks off the matching item. Matching uses the file name. If the name is not recognisable, the client is asked which checklist item the file is for, instead of the hub guessing.
-- [ ] Items still missing are flagged in amber, and a progress bar shows live completion.
-- [ ] A client can submit while items are missing. The submission is saved as "Action Required – Missing Docs" and appears in the agent queue with the gaps listed.
-- [ ] A New Guest Visitor is asked for name, phone, email and preferred language before submitting.
+- [x] A step-by-step wizard: Insurance Line (Auto, Home, Medicare/Medical, Commercial, Life), Request Type (New Quote, Policy Change, Renewal), checklist, then review and submit.
+- [x] The checklist changes with the line and request type, using the rules in your knowledge file.
+- [x] Information items (garaging address, zip code, physician name and similar) are typed in and count toward completion.
+- [x] An uploaded PDF or image is stored privately and read by the document agent, which ticks the matching item and leaves a short English note for the agent. If it cannot match or read the file, the client chooses the item, and the agent sees that it was not confirmed by AI.
+- [x] Missing items are flagged in amber, with a live progress bar.
+- [x] A client can submit with items missing; it is saved as "Action Required – Missing Docs" and appears in the agent queue.
 
-### Tab 2 — Bilingual AI Concierge
+**Tab 2 — Bilingual AI Concierge**
 
-- [ ] A chat assistant answers in the selected language about routine topics: required documents, process steps, how to contact the office, payment portal guidance, submission status, and ID card or COI downloads.
-- [ ] Quick-prompt chips are translated with the rest of the page, including "What documents do I need to add a driver?", "Download my COI" and "I need to change my commercial coverage immediately".
-- [ ] "Download my COI" replies with a download button for that client's own document. If the client has none on file, the reply says so and offers a handoff.
-- [ ] A **Warm Handoff Initiated** banner appears for requests that must go to a person: binding, cancelling or changing coverage effective immediately; complex commercial or claims disputes; Medicare plan comparisons; clear frustration; or asking for a human. It confirms that an English summary and a callback request were sent to a licensed YLS agent.
-- [ ] Each handoff creates an entry in the agent queue with the client's original message, the English summary, the reason for escalation and callback details. A guest is asked for a name and phone number first.
-- [ ] A "Talk to an agent" button is always visible, so a client can reach a person even if their wording is not recognised.
-- [ ] Limitation of simulated mode: questions outside the prepared topics get a polite "I can't answer that reliably" reply with an offer to hand off. The concierge does not improvise insurance advice.
+- [x] The concierge answers routine topics in the selected language: required documents, contact details, payment guidance, submission status, and ID card or COI downloads. Typed messages are classified by the live triage agent in all five languages.
+- [x] Quick-prompt chips are translated with the page.
+- [x] A Warm Handoff banner appears for requests that must go to a person: binding, cancelling or changing coverage; complex commercial or claims disputes; Medicare plan comparisons; clear frustration; or asking for a human.
+- [x] Each handoff creates an agent queue entry with the original message, the reason, callback details, and an English summary that includes an AI rendering of the client's own words.
+- [x] A "Talk to an agent" button is always visible.
+- [x] Questions outside the prepared topics get a polite "I can't answer that reliably" reply with an offer to hand off. If the AI is unavailable, the client is offered an agent.
 
-### Tab 3 — My Policy Vault
+**Tab 3 — My Policy Vault**
 
-- [ ] Each active policy is a card showing Policy Number, Carrier, Monthly Premium, Deductible, status and a Renewal Countdown badge. The badge turns amber under 30 days.
-- [ ] One-click "Download ID Card / COI" buttons list that policy's documents. Downloads are sample documents clearly marked as samples, because no real carrier files exist yet.
-- [ ] A Submission Status Tracker shows each open submission with its completion percentage, the items received and the items missing. It links back to the intake to finish them.
-- [ ] Reminders sent by an agent appear here in the client's language.
-- [ ] A Coverage Gap Recommendation card gives one rule-based suggestion per client, with a button to start an intake or request a callback. It shows no prices or savings figures.
-  - Mei-Ling (Auto only): bundle Home.
-  - Minh (Commercial only): review Group coverage for employees.
-  - Roberto (Medicare, renewal review needed): book a renewal review before the renewal date.
-- [ ] A New Guest Visitor sees an empty vault with an invitation to start an intake.
+- [x] Policy cards show Policy Number, Carrier, Monthly Premium, Deductible, status and a Renewal Countdown badge that turns amber under 30 days.
+- [x] "Download ID Card / COI" buttons give sample documents clearly marked as samples.
+- [x] A Submission Status Tracker shows each open submission with received and missing items, linking back to the intake.
+- [x] Reminders sent by an agent appear in the client's language.
+- [x] A Coverage Gap Recommendation card shows one suggestion the client is eligible for, written by AI in their language and labelled as such, with no prices or savings figures.
 
-## YLS Agent Command Center
+### YLS Agent Command Center
 
-- [ ] A KPI strip shows Incomplete Submissions Caught, Routine Inquiries Auto-Resolved and Avg. Agent Prep Time Saved. The first two count real activity in the hub on top of a small sample history. Prep time saved is an illustrative estimate and is labelled as one.
-- [ ] A Unified Work Queue shows two panels side by side, stacked on phones: incoming client intakes and escalated chat handoffs. Each row shows client, language, line, status and time received. New items from the Client Portal appear without a manual reload.
-- [ ] Clicking any row opens an Agent Prep Drawer with:
-  - the client's preferred language and contact information;
-  - the English summary of the request, with the client's original wording available underneath for handoffs;
-  - a Document Completeness Checklist with green checks for items received and red flags for items missing;
-  - a Suggested Next Action based on the situation, such as sending a reminder for the missing items or calling back about an urgent coverage change.
-- [ ] A one-click "Send Automated Reminder in Client's Language" button shows the translated message with an English reference, records it as sent with a timestamp, and delivers it to the client's Policy Vault. It is unavailable when nothing is missing.
+- [x] A KPI strip shows Incomplete Submissions Caught, Routine Inquiries Auto-Resolved and Avg. Agent Prep Time Saved. The first two count real activity on top of placeholder baseline figures; prep time saved is an illustrative estimate.
+- [x] A Unified Work Queue shows incoming intakes and escalated handoffs, updating without a manual reload.
+- [x] An Agent Prep Drawer shows contact details, the English summary with the original wording, the document checklist with AI notes, and a suggested next action.
+- [x] "Send Automated Reminder in Client's Language" records the reminder and delivers it to the client's Policy Vault.
 
-## Shared data
+### Shared data
 
-- [ ] The database follows your schema: clients, their policies and their active submissions, extended with chat handoffs and reminders.
-- [ ] It starts with your three clients exactly as provided, including Mei-Ling's open submission SUB-501 with its two missing items.
-- [ ] Two sample handoffs are added so the queue is populated before the live demo: Minh's urgent commercial coverage change and Roberto's Medicare plan comparison. They are marked as sample data.
-- [ ] You will first see a preview of all screens running on this sample data. The shared database is connected right after, so intakes, handoffs and reminders persist and flow between the two views.
+- [x] One shared database holds clients, policies, submissions, handoffs, reminders and concierge activity, starting with your three clients, SUB-501 and two sample handoffs.
 
-## Assumptions to confirm or correct
+### Assumptions still to confirm
 
-- **Life insurance checklist.** Your knowledge file has none, so I will use government photo ID, date of birth and beneficiary details, a health questionnaire, and the existing policy statement if replacing coverage. Please have Yvonne confirm.
-- **Medical uses the Medicare checklist**, with the prescription list optional, because your file combines the two.
-- **Only the five lines you listed appear in the intake.** Annuity, Travel and Group are left out of the wizard.
-- **Renewal countdowns are calculated from the renewal date and today's date.** They will be slightly lower than the fixed numbers in your file and will keep counting down. Mei-Ling shows 17 days today.
-- **Translations are AI-written.** A native speaker should review them before real clients see them, especially the Cantonese.
+- **Life insurance checklist** is my assumption; please have Yvonne confirm it.
+- **Medical uses the Medicare checklist**, with the prescription list optional.
+- **Translations and AI replies are AI-written.** A native speaker should review them before real clients see them.
 
-## Not included in this build
+### Still not included
 
-- Real client login. Access is open through the persona switcher so both sides can be demonstrated, so only sample data should be used until sign-in is added.
-- Live connections to the Covey agents, carrier systems or the existing client management system.
-- Real email or text delivery, and storage of uploaded files.
+- Connections to carrier systems or the existing client management system.
+- Real email or text delivery of reminders.
 - Agent actions beyond sending reminders, such as assigning, closing or editing queue items.
