@@ -22,6 +22,7 @@
   "auth.signUp": "Gumawa ng account",
   "auth.signOut": "Mag-sign out",
   "auth.forgotLink": "Nakalimutan ang password?",
+  "auth.judgeNote": "Para sa mga hurado: mag-sign in gamit ang email at password na nakikita sa mga kahon sa itaas.",
   "auth.toSignUp": "Bago rito? Gumawa ng account",
   "auth.toSignIn": "May account na? Mag-sign in",
   "auth.backToSignIn": "Bumalik sa pag-sign in",

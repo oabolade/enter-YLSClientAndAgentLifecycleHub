@@ -22,6 +22,7 @@
   "auth.signUp": "Tạo tài khoản",
   "auth.signOut": "Đăng xuất",
   "auth.forgotLink": "Quên mật khẩu?",
+  "auth.judgeNote": "Dành cho giám khảo: đăng nhập bằng email và mật khẩu hiển thị trong các ô ở trên.",
   "auth.toSignUp": "Lần đầu sử dụng? Tạo tài khoản",
   "auth.toSignIn": "Đã có tài khoản? Đăng nhập",
   "auth.backToSignIn": "Quay lại đăng nhập",
