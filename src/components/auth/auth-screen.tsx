@@ -7,6 +7,7 @@ import { NewPasswordForm } from "@/components/auth/new-password-form";
 import { SignInForm } from "@/components/auth/sign-in-form";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 import { Brand } from "@/components/hub/brand";
+import { ExplainerVideo } from "@/components/hub/explainer-video";
 import { onNavyTrigger } from "@/components/hub/nav-styles";
 import { PortalHero } from "@/components/hub/portal-hero";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -37,9 +38,11 @@ export const AuthScreen = ({ recovering = false }: { recovering?: boolean }) => 
         </div>
       </header>
 
-      <main className="container flex flex-1 flex-col items-center gap-6 py-6 sm:py-8">
+      <main className="container flex flex-1 flex-col gap-6 py-6 sm:py-8">
         <PortalHero title={t("hero.title")} body={t("hero.body")} className="w-full" />
-        <Card className="w-full max-w-md animate-fade-up shadow-card">
+        {/* Sign-in comes first on phones; on wide screens the video sits beside it. */}
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_28rem]">
+        <Card className="w-full animate-fade-up shadow-card lg:order-2">
           <CardHeader className="space-y-2">
             <CardTitle className="text-2xl">{title}</CardTitle>
             <p className="flex items-start gap-2 text-sm text-muted-foreground">
@@ -62,6 +65,10 @@ export const AuthScreen = ({ recovering = false }: { recovering?: boolean }) => 
             )}
           </CardContent>
         </Card>
+        <div className="lg:order-1">
+          <ExplainerVideo />
+        </div>
+        </div>
       </main>
     </div>
   );
