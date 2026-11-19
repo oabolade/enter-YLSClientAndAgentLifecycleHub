@@ -1,20 +1,10 @@
 import { useState } from "react";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  ArrowRight,
-  Building2,
-  Car,
-  CheckCircle2,
-  HeartPulse,
-  Home,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { ChecklistEditor } from "@/components/hub/client/checklist-editor";
+import { IntakeSelectionSummary } from "@/components/hub/client/intake-selection-summary";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -26,16 +16,9 @@ import {
 } from "@/lib/hub/checklists";
 import { useHub } from "@/lib/hub/hub-context";
 import { docLabel, lineLabel, requestDesc, requestLabel } from "@/lib/hub/labels";
+import { LINE_ICONS } from "@/lib/hub/line-icons";
 import type { LineId, RequestTypeId, Submission, SubmissionItem } from "@/lib/hub/types";
 import { cn } from "@/lib/utils";
-
-const LINE_ICONS: Record<LineId, LucideIcon> = {
-  auto: Car,
-  home: Home,
-  medicare: HeartPulse,
-  commercial: Building2,
-  life: Users,
-};
 
 export const IntakeWizard = () => {
   const { currentClient, resumeSubmissionId, intakePreset, submissions } = useHub();
@@ -178,8 +161,9 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
   if (resume) {
     return (
       <Card className="shadow-card">
-        <CardHeader>
+        <CardHeader className="space-y-3">
           <CardTitle className="text-xl">{t("intake.resumeTitle", { id: resume.id })}</CardTitle>
+          <IntakeSelectionSummary line={resume.lines[0] ?? null} requestType={resume.requestType} />
         </CardHeader>
         <CardContent className="space-y-6">
           {checklistEditor}
@@ -249,6 +233,9 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
           ))}
         </ol>
         <CardTitle className="text-2xl">{titles[step]}</CardTitle>
+        {step > 0 ? (
+          <IntakeSelectionSummary line={line} requestType={step > 1 ? requestType : null} />
+        ) : null}
       </CardHeader>
 
       <CardContent className="space-y-6">
