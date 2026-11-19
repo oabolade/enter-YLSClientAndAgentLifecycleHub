@@ -1,0 +1,6 @@
+-- Approve Nikhil Shankar's account as staff, at the owner's request.
+-- Links the existing staff entry to the one account created under that address.
+update public.yls_staff
+set user_id = 'd9f7a191-b21f-45b9-81bb-4a6e1d58f84c'
+where email = 'nikhilshankar221@gmail.com'
+  and user_id is null;
