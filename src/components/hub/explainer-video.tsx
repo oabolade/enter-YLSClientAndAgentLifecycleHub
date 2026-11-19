@@ -5,13 +5,13 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 /**
- * The 30-second explainer made in Framia, streamed from the content server.
+ * The 30-second explainer: the wordless Framia video with an English voiceover and soft
+ * music mixed in, each narration line timed to start with its caption below.
  * showCaptions is on only for a video without words of its own: the page then shows the
  * title and scene captions over it, spelled correctly and in the visitor's language.
  */
 const EXPLAINER = {
-  // Second version: no on-screen words and no sound track, so the page supplies the captions.
-  src: "https://cdn.enter.pro/visual_resources/framia/793f05d9f03b440f91543d698c802783/23175346-4351-4e87-96d1-e26938847b80.f4v",
+  src: "/videos/yls-explainer.mp4",
   showCaptions: true,
 };
 
@@ -48,7 +48,6 @@ export const ExplainerVideo = () => {
           className="aspect-video w-full"
           src={`${EXPLAINER.src}#t=0.5`}
           controls
-          muted
           playsInline
           preload="metadata"
           aria-label={t("video.label")}
