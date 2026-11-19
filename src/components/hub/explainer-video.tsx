@@ -10,8 +10,9 @@ import { cn } from "@/lib/utils";
  * title and scene captions over it, spelled correctly and in the visitor's language.
  */
 const EXPLAINER = {
-  src: "https://cdn.enter.pro/visual_resources/framia/793f05d9f03b440f91543d698c802783/0c0c5a9f-4fe4-4fd3-b804-6498fe3d35c1.f4v",
-  showCaptions: false,
+  // Second version: no on-screen words and no sound track, so the page supplies the captions.
+  src: "https://cdn.enter.pro/visual_resources/framia/793f05d9f03b440f91543d698c802783/23175346-4351-4e87-96d1-e26938847b80.f4v",
+  showCaptions: true,
 };
 
 /** When each caption starts, in seconds, following the storyboard given to Framia. */
