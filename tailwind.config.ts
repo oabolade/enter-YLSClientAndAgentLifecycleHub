@@ -93,6 +93,7 @@ export default {
 				'gradient-navy': 'var(--gradient-navy)',
 				'gradient-subtle': 'var(--gradient-subtle)',
 				'gradient-hero-fade': 'var(--gradient-hero-fade)',
+				'gradient-hero-fade-up': 'var(--gradient-hero-fade-up)',
 				'gradient-gold-line': 'var(--gradient-gold-line)'
 			},
 			boxShadow: {

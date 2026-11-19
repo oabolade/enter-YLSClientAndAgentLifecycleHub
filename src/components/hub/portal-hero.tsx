@@ -3,11 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
-/**
- * The banner photo, created in Framia. Null until the file is delivered; the banner
- * then shows its navy backdrop alone rather than a stand-in picture.
- */
-const HERO_IMAGE_URL: string | null = null;
+/** Banner photo supplied by YLS (made in Framia), re-encoded for the web. */
+const HERO_IMAGE = { src: "/images/yls-hero-banner.jpg", width: 1600, height: 893 };
 
 type PortalHeroProps = {
   title: string;
@@ -28,28 +25,35 @@ export const PortalHero = ({ title, body, className }: PortalHeroProps) => {
   return (
     <section
       className={cn(
-        "relative isolate overflow-hidden rounded-2xl bg-gradient-navy text-primary-foreground shadow-raised",
+        "relative isolate overflow-hidden rounded-2xl bg-primary text-primary-foreground shadow-raised",
         className,
       )}
     >
-      {HERO_IMAGE_URL ? (
-        <div className="absolute inset-y-0 right-0 -z-10 w-full motion-safe:animate-hero-settle sm:w-[78%]">
-          <img
-            src={HERO_IMAGE_URL}
-            alt={t("hero.imageAlt")}
-            crossOrigin="anonymous"
-            className="h-full w-full object-cover object-[70%_center] motion-safe:animate-hero-drift"
-          />
-        </div>
-      ) : null}
-      {/* Keeps the text side calm and readable over the photo. */}
-      <div className="absolute inset-0 -z-10 bg-gradient-hero-fade" aria-hidden />
+      {/*
+        The photo is a strip above the text on phones and tablets. On large screens it fills
+        the banner, anchored right, so the people sit beside the text and its own navy
+        left side carries the text.
+      */}
+      <div className="relative aspect-[4/3] w-full overflow-hidden sm:aspect-auto sm:h-72 lg:absolute lg:inset-0 lg:-z-10 lg:h-auto motion-safe:animate-hero-settle">
+        <img
+          src={HERO_IMAGE.src}
+          width={HERO_IMAGE.width}
+          height={HERO_IMAGE.height}
+          alt={t("hero.imageAlt")}
+          decoding="async"
+          className="h-full w-full object-cover object-[100%_30%] motion-safe:animate-hero-drift"
+        />
+        <div
+          className="absolute inset-0 bg-gradient-hero-fade-up lg:bg-gradient-hero-fade"
+          aria-hidden
+        />
+      </div>
       <div
         className="absolute -left-16 -top-24 -z-10 h-64 w-64 rounded-full bg-gold/20 blur-3xl motion-safe:animate-glow"
         aria-hidden
       />
 
-      <div className="flex min-h-[300px] max-w-xl flex-col justify-center gap-4 px-6 py-10 sm:min-h-[360px] sm:px-10 lg:min-h-[400px]">
+      <div className="relative flex max-w-2xl flex-col justify-center gap-4 px-6 pb-8 pt-2 sm:px-10 sm:pb-10 lg:min-h-[400px] lg:max-w-[40%] lg:py-10">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gold motion-safe:animate-hero-in">
           {t("nav.brandSub")}
         </p>
@@ -57,7 +61,7 @@ export const PortalHero = ({ title, body, className }: PortalHeroProps) => {
           className="block h-1 w-16 origin-left rounded-full bg-gradient-gold-line motion-safe:animate-line-grow"
           aria-hidden
         />
-        <h1 className="text-3xl font-semibold leading-tight sm:text-4xl lg:text-5xl motion-safe:animate-hero-in motion-safe:[animation-delay:120ms]">
+        <h1 className="text-3xl font-semibold leading-tight sm:text-4xl xl:text-5xl motion-safe:animate-hero-in motion-safe:[animation-delay:120ms]">
           {title}
         </h1>
         <p className="max-w-md text-sm text-primary-foreground/85 sm:text-base motion-safe:animate-hero-in motion-safe:[animation-delay:240ms]">
