@@ -31,6 +31,9 @@
     --crimson-foreground: 0 0% 100%;
     --crimson-soft: 346 71% 96%;
 
+    --gold: 41 72% 56%;
+    --gold-foreground: 209 63% 16%;
+
     --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
     --destructive-soft: 0 80% 96%;
@@ -51,6 +54,9 @@
 
     --gradient-navy: linear-gradient(135deg, hsl(209 63% 16%), hsl(211 55% 25%));
     --gradient-subtle: linear-gradient(180deg, hsl(210 33% 98%), hsl(213 30% 95%));
+    /* Navy wash that keeps the banner's left side calm and readable over the photo. */
+    --gradient-hero-fade: linear-gradient(90deg, hsl(209 63% 16%) 0%, hsl(209 63% 16% / 0.92) 32%, hsl(209 63% 16% / 0.45) 58%, hsl(209 63% 16% / 0) 85%);
+    --gradient-gold-line: linear-gradient(90deg, hsl(41 72% 56%), hsl(346 71% 48%));
     --shadow-card: 0 1px 2px hsl(209 63% 16% / 0.06), 0 10px 28px -14px hsl(209 63% 16% / 0.22);
     --shadow-raised: 0 18px 40px -18px hsl(209 63% 16% / 0.35);
 

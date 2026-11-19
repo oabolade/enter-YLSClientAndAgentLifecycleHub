@@ -8,6 +8,7 @@ import { SignInForm } from "@/components/auth/sign-in-form";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 import { Brand } from "@/components/hub/brand";
 import { onNavyTrigger } from "@/components/hub/nav-styles";
+import { PortalHero } from "@/components/hub/portal-hero";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -36,7 +37,8 @@ export const AuthScreen = ({ recovering = false }: { recovering?: boolean }) => 
         </div>
       </header>
 
-      <main className="container flex flex-1 items-start justify-center py-8 sm:py-14">
+      <main className="container flex flex-1 flex-col items-center gap-6 py-6 sm:py-8">
+        <PortalHero title={t("hero.title")} body={t("hero.body")} className="w-full" />
         <Card className="w-full max-w-md animate-fade-up shadow-card">
           <CardHeader className="space-y-2">
             <CardTitle className="text-2xl">{title}</CardTitle>

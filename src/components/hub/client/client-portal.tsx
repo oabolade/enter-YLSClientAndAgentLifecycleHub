@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ConciergeChat } from "@/components/hub/client/concierge-chat";
 import { IntakeWizard } from "@/components/hub/client/intake-wizard";
 import { PolicyVault } from "@/components/hub/client/policy-vault";
+import { PortalHero } from "@/components/hub/portal-hero";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useHub } from "@/lib/hub/hub-context";
 import type { ClientTab } from "@/lib/hub/types";
@@ -18,14 +19,14 @@ export const ClientPortal = () => {
 
   return (
     <div className="space-y-6">
-      <div className="animate-fade-up">
-        <h1 className="text-3xl font-semibold sm:text-4xl">
-          {currentClient
+      <PortalHero
+        title={
+          currentClient
             ? t("portal.welcome", { name: currentClient.fullName })
-            : t("portal.welcomeGuest")}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">{t("portal.subtitle")}</p>
-      </div>
+            : t("portal.welcomeGuest")
+        }
+        body={t("portal.subtitle")}
+      />
 
       <Tabs value={clientTab} onValueChange={(value) => setClientTab(value as ClientTab)}>
         <TabsList className="grid h-auto w-full grid-cols-3 bg-secondary p-1">
