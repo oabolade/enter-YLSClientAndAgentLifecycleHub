@@ -1,0 +1,6 @@
+-- Remove two test handoffs created while testing the agents, at the owner's request.
+-- Verified beforehand: both belong to Mei-Ling Chen (CLT-101), reason callback_request,
+-- original messages as stated, no foreign keys or other rows reference them.
+delete from public.yls_handoffs
+where (id = 'HND-307' and client_id = 'CLT-101' and reason = 'callback_request' and original_message = 'Does my policy cover a rental car?')
+   or (id = 'HND-308' and client_id = 'CLT-101' and reason = 'callback_request' and original_message = 'Does my auto policy include roadside assistance?');
