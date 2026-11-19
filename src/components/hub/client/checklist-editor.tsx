@@ -14,18 +14,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { fallbackLng, normalizeLanguage } from "@/i18n/config";
 import {
   DOCUMENT_ACCEPT,
-  checkDocument,
   documentExtension,
+  reviewIntake,
   storeDocument,
 } from "@/lib/hub/agents";
 import { completion } from "@/lib/hub/checklists";
+import { DOC_CRITERIA } from "@/lib/hub/covey";
 import { docLabel } from "@/lib/hub/labels";
-import type { DocId, SubmissionItem } from "@/lib/hub/types";
+import type { DocId, LangCode, SubmissionItem } from "@/lib/hub/types";
 import { cn } from "@/lib/utils";
 
 type ChecklistEditorProps = {
+  /** The saved submission, or a draft id until the intake is filed. */
+  submissionId: string;
+  lineOfBusiness: string;
   items: SubmissionItem[];
   onChange: (items: SubmissionItem[]) => void;
   /** Name the document agent compares against the name on each document. */
@@ -54,12 +59,16 @@ const CLEARED_FILE: Partial<SubmissionItem> = {
 };
 
 export const ChecklistEditor = ({
+  submissionId,
+  lineOfBusiness,
   items,
   onChange,
   clientName,
   onBusyChange,
 }: ChecklistEditorProps) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = (normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ??
+    fallbackLng) as LangCode;
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -97,17 +106,37 @@ export const ChecklistEditor = ({
       setUnmatched((prev) => [...prev, { key, name: file.name, path, note, reason }]);
 
     try {
-      const verdict = await checkDocument(path, openFileIds(), clientName);
-      if (verdict.match && openFileIds().includes(verdict.match)) {
-        patchItem(verdict.match, {
+      // Only the open items are sent with the new file: items already received stay received.
+      const checklist = openFileIds().flatMap((id) =>
+        DOC_CRITERIA[id]
+          ? [{ item_id: id, label: DOC_CRITERIA[id].label, review_criteria: DOC_CRITERIA[id].criteria }]
+          : [],
+      );
+      if (checklist.length === 0) {
+        hold("unmatched");
+        return;
+      }
+      const documentId = `doc-${key}`;
+      const review = await reviewIntake({
+        submissionId,
+        language,
+        lineOfBusiness,
+        checklist,
+        documents: [{ document_id: documentId, filename: file.name, path }],
+        clientName,
+      });
+      const hit = review.items.find((entry) => entry.document_ids.includes(documentId));
+      const target = checklist.find((entry) => entry.item_id === hit?.item_id);
+      if (hit?.status === "received" && target && openFileIds().includes(target.item_id as DocId)) {
+        patchItem(target.item_id as DocId, {
           received: true,
           fileName: file.name,
           filePath: path,
           aiVerified: true,
-          aiNote: verdict.note,
+          aiNote: `AI intake review: readable and matches "${target.label}".`,
         });
       } else {
-        hold(verdict.legible ? "unmatched" : "unreadable", verdict.note);
+        hold(hit?.status === "needs_review" ? "unreadable" : "unmatched");
       }
     } catch (error) {
       // The file is saved; without the agent, the client chooses where it belongs.

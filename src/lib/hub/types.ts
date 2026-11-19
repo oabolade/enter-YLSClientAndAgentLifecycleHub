@@ -127,9 +127,14 @@ export type PendingHandoff = {
   originalMessage: string;
   /** Set when the message is a button label, so there is nothing to translate. */
   skipBrief?: boolean;
+  /** What the client was asking, for the callback summary. */
+  topic?: string;
+  /** The last few chat turns, so the brief writer sees the conversation. */
+  recentMessages?: { role: "user" | "assistant"; content: string }[];
 };
 
 export type Reply =
+  | { kind: "ai"; text: string; offer?: PendingHandoff }
   | { kind: "greeting" }
   | { kind: "docs"; line: LineId | null; addDriver: boolean }
   | { kind: "download"; policyNumber: string; documents: string[] }

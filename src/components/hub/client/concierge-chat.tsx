@@ -8,12 +8,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { fallbackLng, normalizeLanguage } from "@/i18n/config";
-import { triageMessage } from "@/lib/hub/agents";
+import { askTriage } from "@/lib/hub/agents";
 import { buildChecklist, completion } from "@/lib/hub/checklists";
+import { intakeStatusFor, toAppReason, type ChatTurn } from "@/lib/hub/covey";
+import { APPROVED_FAQS } from "@/lib/hub/faqs";
 import { useHub } from "@/lib/hub/hub-context";
 import { docLabel, lineLabel } from "@/lib/hub/labels";
 import { downloadSampleDocument } from "@/lib/hub/sample-pdf";
-import { classifyChip, relatedPolicy, type Triage } from "@/lib/hub/triage";
+import {
+  classifyChip,
+  detectLine,
+  mandatoryHandoff,
+  relatedPolicy,
+  type Triage,
+} from "@/lib/hub/triage";
 import type { ChatMessage, ChipId, LangCode, PendingHandoff, Reply } from "@/lib/hub/types";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +30,7 @@ const uid = () => crypto.randomUUID();
 
 export const ConciergeChat = () => {
   const { t, i18n } = useTranslation();
-  const { chat, pushChat, currentClient, createHandoff, recordAutoResolved } = useHub();
+  const { chat, pushChat, currentClient, createHandoff, recordAutoResolved, submissions } = useHub();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [accepted, setAccepted] = useState<string[]>([]);
@@ -125,16 +133,54 @@ export const ConciergeChat = () => {
     }
   };
 
-  /** A typed message goes to the live triage agent; if it is down, the client is offered a person. */
+  /** The last few turns, so the agents see the conversation. */
+  const recentTurns = (): ChatTurn[] =>
+    chat
+      .flatMap((entry): ChatTurn[] => {
+        if (entry.role === "user") return entry.text ? [{ role: "user", content: entry.text }] : [];
+        return entry.reply.kind === "ai" ? [{ role: "assistant", content: entry.reply.text }] : [];
+      })
+      .slice(-6);
+
+  /** A typed message goes to the triage agent; if it is down, the client is offered a person. */
   const answer = async (message: string): Promise<Reply> => {
-    let triage: Triage;
+    // Hard-coded guardrail first: these requests go to a person whatever the AI would say.
+    const mandatory = mandatoryHandoff(message);
+    if (mandatory) return respond(mandatory, message);
+
+    const mine = submissions.filter((entry) => entry.clientId === currentClient?.id);
+    const open = mine.find((entry) => completion(entry.items).missing.length > 0) ?? mine[0];
+    const recentMessages = recentTurns();
     try {
-      triage = await triageMessage(message);
+      const result = await askTriage({
+        submissionId: open?.id ?? `chat-${currentClient?.id ?? "unknown"}`,
+        language,
+        message,
+        recentMessages,
+        intakeStatus: open ? intakeStatusFor(open.id, open.items) : null,
+        faqs: APPROVED_FAQS,
+      });
+      if (result.route === "offer_handoff") {
+        // The callback is only filed once the client confirms with the button.
+        return {
+          kind: "ai",
+          text: result.client_reply,
+          offer: {
+            reason: toAppReason(result.handoff_reason),
+            line: detectLine(message),
+            action: null,
+            originalMessage: message,
+            topic: message.slice(0, 200),
+            recentMessages,
+          },
+        };
+      }
+      recordAutoResolved(language);
+      return { kind: "ai", text: result.client_reply };
     } catch (error) {
       console.error("Triage agent unavailable", error);
       return { kind: "unavailable", originalMessage: message };
     }
-    return respond(triage, message);
   };
 
   const send = (text: string, chip?: ChipId) => {
@@ -350,6 +396,13 @@ const ReplyContent = ({ reply, offerDisabled, onAcceptOffer }: ReplyContentProps
   );
 
   switch (reply.kind) {
+    case "ai":
+      return (
+        <>
+          <p>{reply.text}</p>
+          {reply.offer ? offerButton(reply.offer) : null}
+        </>
+      );
     case "greeting":
       return <p>{t("chat.reply.greeting")}</p>;
     case "docs": {

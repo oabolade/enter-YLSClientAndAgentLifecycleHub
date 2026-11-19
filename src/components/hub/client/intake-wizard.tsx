@@ -88,8 +88,12 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
   const progress = completion(items);
   const [saving, setSaving] = useState(false);
   const [checking, setChecking] = useState(false);
+  // Links the reviewer's results to this intake until it is filed and gets its own id.
+  const [draftId] = useState(() => `draft-${crypto.randomUUID()}`);
   const checklistEditor = (
     <ChecklistEditor
+      submissionId={resume?.id ?? draftId}
+      lineOfBusiness={line ?? resume?.lines[0] ?? "unknown"}
       items={items}
       onChange={setItems}
       clientName={currentClient?.fullName ?? ""}
