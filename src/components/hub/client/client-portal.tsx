@@ -11,7 +11,7 @@ import type { ClientTab } from "@/lib/hub/types";
 
 const triggerClass =
   "flex h-full flex-col gap-1 whitespace-normal px-2 py-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground sm:flex-row sm:gap-2 sm:text-sm";
-const contentClass = "mt-5 data-[state=inactive]:hidden";
+const contentClass = "mt-5 motion-safe:animate-fade-up data-[state=inactive]:hidden";
 
 export const ClientPortal = () => {
   const { t } = useTranslation();

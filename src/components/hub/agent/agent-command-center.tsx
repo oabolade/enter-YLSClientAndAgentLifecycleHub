@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   BellRing,
@@ -10,6 +10,7 @@ import {
   Mail,
   MessageCircleReply,
   Phone,
+  Sparkles,
   XCircle,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -42,6 +43,7 @@ import {
   docLabel,
 } from "@/lib/hub/labels";
 import type { Handoff, HandoffReason, Submission } from "@/lib/hub/types";
+import { cn } from "@/lib/utils";
 
 // The Agent Command Center is always in English, so its copy lives here, not in the locale files.
 
@@ -77,6 +79,35 @@ const REASON_ACTION: Record<HandoffReason, string> = {
 
 const ago = (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true });
 
+/** Callbacks filed in the last few minutes are highlighted as they arrive in the queue. */
+const FRESH_MS = 10 * 60_000;
+const hasAiBrief = (handoff: Handoff) => handoff.englishSummary.includes("AI agent brief:");
+
+/** Counts up to a KPI value (from its last shown value) so a change is noticed. */
+const CountUp = ({ value }: { value: number }) => {
+  const [shown, setShown] = useState(0);
+  const shownRef = useRef(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      shownRef.current = value;
+      setShown(value);
+      return;
+    }
+    const from = shownRef.current;
+    const start = performance.now();
+    let frame = 0;
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - start) / 700);
+      shownRef.current = Math.round(from + (value - from) * (1 - (1 - progress) ** 3));
+      setShown(shownRef.current);
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return <span className="tabular-nums">{shown}</span>;
+};
+
 const intakeTitle = (submission: Submission) =>
   submission.seedTitle === "teenDriverHome"
     ? "Add Teen Driver + New Quote (Home)"
@@ -97,19 +128,21 @@ export const AgentCommandCenter = () => {
     {
       icon: FileWarning,
       label: "Incomplete Submissions Caught",
-      value: String(BASELINE_INCOMPLETE_CAUGHT + incomplete.length),
+      value: BASELINE_INCOMPLETE_CAUGHT + incomplete.length,
       note: "Sample history plus open items in this hub",
     },
     {
       icon: MessageCircleReply,
       label: "Routine Inquiries Auto-Resolved",
-      value: String(BASELINE_AUTO_RESOLVED + hub.autoResolved),
+      value: BASELINE_AUTO_RESOLVED + hub.autoResolved,
       note: "Sample history plus concierge answers recorded in this hub",
     },
     {
       icon: Clock3,
       label: "Avg. Agent Prep Time Saved",
-      value: `~${PREP_MINUTES_SAVED} min`,
+      value: PREP_MINUTES_SAVED,
+      prefix: "~",
+      suffix: " min",
       note: "Illustrative estimate per request, not measured",
     },
   ];
@@ -129,7 +162,7 @@ export const AgentCommandCenter = () => {
 
   return (
     <div className="space-y-6">
-      <div className="animate-fade-up">
+      <div className="motion-safe:animate-fade-up">
         <h1 className="text-3xl font-semibold sm:text-4xl">Agent Command Center</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Every intake and escalated chat, summarized in English and ready to act on.
@@ -137,8 +170,12 @@ export const AgentCommandCenter = () => {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        {kpis.map((kpi) => (
-          <Card key={kpi.label} className="shadow-card">
+        {kpis.map((kpi, index) => (
+          <Card
+            key={kpi.label}
+            className="shadow-card motion-safe:animate-fade-up"
+            style={{ animationDelay: `${60 + index * 60}ms` }}
+          >
             <CardContent className="flex items-start gap-4 pt-6">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <kpi.icon className="h-5 w-5" aria-hidden />
@@ -147,7 +184,11 @@ export const AgentCommandCenter = () => {
                 <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                   {kpi.label}
                 </p>
-                <p className="font-display text-3xl font-semibold">{kpi.value}</p>
+                <p className="font-display text-3xl font-semibold">
+                  {kpi.prefix}
+                  <CountUp value={kpi.value} />
+                  {kpi.suffix}
+                </p>
                 <p className="text-xs text-muted-foreground">{kpi.note}</p>
               </div>
             </CardContent>
@@ -155,7 +196,10 @@ export const AgentCommandCenter = () => {
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div
+        className="grid gap-6 motion-safe:animate-fade-up xl:grid-cols-2"
+        style={{ animationDelay: "240ms" }}
+      >
         <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="flex items-center justify-between text-xl">
@@ -229,7 +273,16 @@ export const AgentCommandCenter = () => {
               </TableHeader>
               <TableBody>
                 {hub.handoffs.map((handoff) => (
-                  <TableRow key={handoff.id} {...rowProps({ type: "handoff", id: handoff.id })}>
+                  <TableRow
+                    key={handoff.id}
+                    {...rowProps({ type: "handoff", id: handoff.id })}
+                    className={cn(
+                      "cursor-pointer",
+                      !handoff.sample &&
+                        Date.now() - new Date(handoff.createdAt).getTime() < FRESH_MS &&
+                        "animate-row-in",
+                    )}
+                  >
                     <TableCell>
                       <p className="font-medium">{handoff.contactName}</p>
                       <p className="text-xs text-muted-foreground">
@@ -237,7 +290,15 @@ export const AgentCommandCenter = () => {
                       </p>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="crimson">{REASON_LABEL[handoff.reason]}</Badge>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="crimson">{REASON_LABEL[handoff.reason]}</Badge>
+                        {hasAiBrief(handoff) ? (
+                          <Badge variant="success" className="gap-1">
+                            <Sparkles className="h-3 w-3" aria-hidden />
+                            AI brief ready
+                          </Badge>
+                        ) : null}
+                      </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {handoff.id}
                         {handoff.sample ? " · Sample" : ""}
@@ -405,7 +466,10 @@ const PrepDrawer = ({ selection }: { selection: NonNullable<Selection> }) => {
                       ) : null}
                       {entry.aiVerified === true ? (
                         <span className="block text-xs font-normal text-muted-foreground">
-                          AI check: {entry.aiNote || "matched to this item."}
+                          {/* Notes saved before Nov 18 start with their own "AI intake review:" prefix. */}
+                          AI check:{" "}
+                          {entry.aiNote?.replace(/^AI intake review: /, "") ||
+                            "matched to this item."}
                         </span>
                       ) : entry.aiVerified === false ? (
                         <span className="block text-xs font-medium text-warning-foreground">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, Headset, Loader2, PhoneCall, SendHorizontal, Sparkles } from "lucide-react";
+import { Download, Headset, PhoneCall, SendHorizontal, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -247,7 +247,7 @@ export const ConciergeChat = () => {
         {bannerPhone ? (
           <div
             role="status"
-            className="flex animate-fade-up items-start gap-3 rounded-xl border border-crimson/30 bg-crimson-soft p-4"
+            className="flex items-start motion-safe:animate-fade-up gap-3 rounded-xl border border-crimson/30 bg-crimson-soft p-4"
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-crimson text-crimson-foreground">
               <PhoneCall className="h-4 w-4" aria-hidden />
@@ -290,7 +290,15 @@ export const ConciergeChat = () => {
           )}
           {busy ? (
             <Bubble role="assistant">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+              <span className="flex h-4 items-center gap-1" aria-hidden>
+                {[0, 150, 300].map((delay) => (
+                  <span
+                    key={delay}
+                    className="h-1.5 w-1.5 animate-dot rounded-full bg-muted-foreground"
+                    style={{ animationDelay: `${delay}ms` }}
+                  />
+                ))}
+              </span>
             </Bubble>
           ) : null}
         </div>
@@ -357,10 +365,10 @@ const Bubble = ({ role, highlight, children }: BubbleProps) => (
   <div className={cn("flex", role === "user" ? "justify-end" : "justify-start")}>
     <div
       className={cn(
-        "max-w-[88%] animate-fade-up space-y-2 rounded-2xl px-4 py-2.5 text-sm sm:max-w-[75%]",
+        "max-w-[88%] space-y-2 rounded-2xl px-4 py-2.5 text-sm motion-safe:animate-pop-in sm:max-w-[75%]",
         role === "user"
-          ? "rounded-br-sm bg-primary text-primary-foreground"
-          : "rounded-bl-sm border bg-card",
+          ? "origin-bottom-right rounded-br-sm bg-primary text-primary-foreground"
+          : "origin-bottom-left rounded-bl-sm border bg-card",
         highlight && "border-crimson/40",
       )}
     >
