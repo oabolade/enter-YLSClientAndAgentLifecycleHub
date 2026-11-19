@@ -37,6 +37,8 @@ type ChecklistEditorProps = {
   clientName: string;
   /** Reports whether uploads are still being stored or checked. */
   onBusyChange?: (busy: boolean) => void;
+  /** Flag unfilled required items as missing (after the client tries to continue). */
+  showMissing: boolean;
 };
 
 type QueuedFile = { key: string; file: File; extension: string };
@@ -65,6 +67,7 @@ export const ChecklistEditor = ({
   onChange,
   clientName,
   onBusyChange,
+  showMissing,
 }: ChecklistEditorProps) => {
   const { t, i18n } = useTranslation();
   const language = (normalizeLanguage(i18n.resolvedLanguage ?? i18n.language) ??
@@ -199,7 +202,10 @@ export const ChecklistEditor = ({
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4">
-        <ProgressRing value={progress.pct} tone={progress.missing.length ? "warning" : "success"} />
+        <ProgressRing
+          value={progress.pct}
+          tone={showMissing && progress.missing.length ? "warning" : "success"}
+        />
         <span className="text-sm font-medium">
           {t("intake.progress", { done: progress.done, total: progress.total })}
         </span>
@@ -207,7 +213,7 @@ export const ChecklistEditor = ({
 
       <ul className="space-y-2">
         {items.map((entry, index) => {
-          const flagged = !entry.received && !entry.optional;
+          const flagged = showMissing && !entry.received && !entry.optional;
           return (
             <li
               key={entry.id}

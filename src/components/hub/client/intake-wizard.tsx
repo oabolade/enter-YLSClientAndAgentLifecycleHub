@@ -72,9 +72,12 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
   const [requestType, setRequestType] = useState<RequestTypeId | null>(null);
   const [items, setItems] = useState<SubmissionItem[]>(resume ? resume.items : []);
   const [result, setResult] = useState<{ id: string; complete: boolean } | null>(null);
+  // A new intake flags missing items only once the client presses Continue; a resumed one already was submitted.
+  const [showMissing, setShowMissing] = useState(resume !== null);
 
   const rebuild = (nextLine: LineId | null, nextRequest: RequestTypeId | null) => {
     if (!nextLine || !nextRequest) return;
+    setShowMissing(false);
     const fresh = toSubmissionItems(buildChecklist(nextLine, nextRequest));
     setItems((prev) =>
       fresh.map((entry) => {
@@ -98,6 +101,7 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
       onChange={setItems}
       clientName={currentClient?.fullName ?? ""}
       onBusyChange={setChecking}
+      showMissing={showMissing}
     />
   );
 
@@ -301,6 +305,15 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
 
         {step === 2 ? checklistEditor : null}
 
+        {step === 2 && !resume && showMissing && progress.missing.length ? (
+          <p
+            role="alert"
+            className="rounded-lg border border-warning/50 bg-warning-soft p-3 text-sm font-medium text-warning-foreground"
+          >
+            {t("intake.missingWarning", { count: progress.missing.length })}
+          </p>
+        ) : null}
+
         {step === 3 && line && requestType ? (
           <div className="space-y-5">
             <dl className="grid gap-3 sm:grid-cols-2">
@@ -354,7 +367,14 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
             {t("intake.back")}
           </Button>
           {step === 2 ? (
-            <Button disabled={checking} onClick={() => setStep(3)}>
+            <Button
+              disabled={checking}
+              onClick={() => {
+                // First press with gaps shows what is missing; pressing again continues (late uploads are allowed).
+                if (progress.missing.length && !showMissing) setShowMissing(true);
+                else setStep(3);
+              }}
+            >
               {t("intake.next")}
               <ArrowRight />
             </Button>
