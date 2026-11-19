@@ -36,6 +36,7 @@ export type HandoffInput = {
   topic?: string;
   /** Skip the AI English rendering when the message is a button label, not client wording. */
   skipBrief?: boolean;
+  recentMessages?: { role: "user" | "assistant"; content: string }[];
 };
 
 export type HubStatus = "loading" | "ready" | "error";

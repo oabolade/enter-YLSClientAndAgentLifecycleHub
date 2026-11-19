@@ -2,8 +2,19 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 
 import { supabase } from "@/integrations/supabase/client";
 
-import { mandatoryHandoff, type Triage } from "./triage";
-import type { DocId, LangCode } from "./types";
+import {
+  isBriefResult,
+  isIntakeResult,
+  isTriageResult,
+  type ApprovedFaq,
+  type BriefResult,
+  type CallbackPreference,
+  type ChatTurn,
+  type CoveyHandoffReason,
+  type IntakeResult,
+  type TriageResult,
+} from "./covey";
+import type { LangCode } from "./types";
 
 /**
  * The three specialist agents. Each runs as a backend function so the AI credentials
@@ -23,23 +34,54 @@ async function callAgent<T>(name: string, body: Record<string, unknown>): Promis
   return data as T;
 }
 
-/** Bilingual Triage agent. */
-export async function triageMessage(message: string): Promise<Triage> {
-  // Hard-coded guardrail first: these requests go to a person whatever the AI would say.
-  const mandatory = mandatoryHandoff(message);
-  if (mandatory) return mandatory;
-  const { triage } = await callAgent<{ triage: Triage }>("yls-triage", { message });
-  if (triage?.tier !== 1 && triage?.tier !== 2) throw new Error("Triage returned no decision.");
-  return triage;
+export type TriageInput = {
+  submissionId: string;
+  language: LangCode;
+  message: string;
+  recentMessages: ChatTurn[];
+  intakeStatus: IntakeResult | null;
+  faqs: ApprovedFaq[];
+};
+
+/** Multilingual Client Triage agent: one route per client message. */
+export async function askTriage(input: TriageInput): Promise<TriageResult> {
+  const result = await callAgent<unknown>("yls-triage", {
+    submission_id: input.submissionId,
+    client_language: input.language,
+    client_message: input.message,
+    recent_messages: input.recentMessages,
+    intake_status: input.intakeStatus,
+    approved_faqs: input.faqs,
+  });
+  if (!isTriageResult(result)) throw new Error("Triage returned no decision.");
+  return result;
 }
 
-/** Warm-Handoff Summarizer: the client's message rendered in English for the agent. */
-export async function translateForAgent(message: string): Promise<string> {
-  const { english } = await callAgent<{ english: string }>("yls-handoff-brief", {
-    message: message.slice(0, 2000),
+export type BriefInput = {
+  submissionId: string;
+  language: LangCode;
+  lineOfBusiness: string;
+  reason: CoveyHandoffReason;
+  question: string;
+  recentMessages: ChatTurn[];
+  intakeStatus: IntakeResult | null;
+  callbackPreference: CallbackPreference;
+};
+
+/** Agent Handoff Writer: an English brief for the licensed agent, written after the client confirms a callback. */
+export async function writeBrief(input: BriefInput): Promise<BriefResult> {
+  const result = await callAgent<unknown>("yls-handoff-brief", {
+    submission_id: input.submissionId,
+    client_language: input.language,
+    line_of_business: input.lineOfBusiness,
+    handoff_reason: input.reason,
+    client_question: input.question.slice(0, 2000),
+    recent_messages: input.recentMessages,
+    intake_status: input.intakeStatus,
+    callback_preference: input.callbackPreference,
   });
-  if (!english) throw new Error("The summary came back empty.");
-  return english;
+  if (!isBriefResult(result)) throw new Error("The summary came back empty.");
+  return result;
 }
 
 const DOCUMENT_BUCKET = "yls-client-documents";
@@ -72,30 +114,28 @@ export async function storeDocument(file: File, extension: string): Promise<stri
   return path;
 }
 
-export type DocumentVerdict = {
-  /** The open checklist item this file satisfies, if the agent confirmed one. */
-  match: DocId | null;
-  legible: boolean;
-  /** Short English note for the licensed agent. */
-  note: string;
+export type ReviewInput = {
+  submissionId: string;
+  language: LangCode;
+  lineOfBusiness: string;
+  /** Only the items still open: the reviewer returns one result per entry. */
+  checklist: { item_id: string; label: string; review_criteria: string }[];
+  documents: { document_id: string; filename: string; path: string }[];
+  clientName: string;
 };
 
-/** Document Completeness & Extraction agent. */
-export async function checkDocument(
-  path: string,
-  candidates: DocId[],
-  clientName: string,
-): Promise<DocumentVerdict> {
-  const verdict = await callAgent<DocumentVerdict>("yls-document-check", {
-    path,
-    candidates,
-    clientName,
+/** Document Intake Reviewer: checks uploads against the checklist for the selected line. */
+export async function reviewIntake(input: ReviewInput): Promise<IntakeResult> {
+  const result = await callAgent<unknown>("yls-document-check", {
+    submission_id: input.submissionId,
+    client_language: input.language,
+    line_of_business: input.lineOfBusiness,
+    checklist: input.checklist,
+    documents: input.documents.map((doc) => ({ ...doc, access_status: "available" })),
+    clientName: input.clientName,
   });
-  return {
-    match: verdict.match && candidates.includes(verdict.match) ? verdict.match : null,
-    legible: verdict.legible !== false,
-    note: typeof verdict.note === "string" ? verdict.note : "",
-  };
+  if (!isIntakeResult(result)) throw new Error("The document review came back invalid.");
+  return result;
 }
 
 export type NudgeId = "medicareReview" | "bundleHome" | "group";

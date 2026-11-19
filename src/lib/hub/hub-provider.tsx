@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { User } from "@supabase/supabase-js";
 
 import i18n from "@/i18n/config";
-import { translateForAgent } from "./agents";
+import { writeBrief } from "./agents";
 import { completion } from "./checklists";
+import { intakeStatusFor, toCoveyReason } from "./covey";
 import {
   EMPTY_HUB_DATA,
   fetchHubData,
@@ -29,6 +30,7 @@ import { buildSummary } from "./triage";
 import type {
   ChatMessage,
   ClientTab,
+  Handoff,
   HubView,
   LangCode,
   LineId,
@@ -141,7 +143,9 @@ export const HubProvider = ({ user, children }: HubProviderProps) => {
     return submission;
   }, []);
 
-  const createHandoff = useCallback(async (input: HandoffInput) => {
+  const handoffRequests = useRef(new Map<string, Promise<Handoff>>());
+
+  const fileHandoff = useCallback(async (input: HandoffInput) => {
     let englishSummary = buildSummary({
       name: input.contactName,
       language: input.language,
@@ -153,14 +157,25 @@ export const HubProvider = ({ user, children }: HubProviderProps) => {
       topic: input.topic,
     });
     if (!input.skipBrief) {
-      // The handoff must reach the queue even if the AI rendering is unavailable.
+      // The handoff must reach the queue even if the AI brief is unavailable.
       try {
-        const english = await translateForAgent(input.originalMessage);
-        englishSummary += ` In the client's words (AI translation): ${english}`;
+        const mine = dataRef.current.submissions.filter((entry) => entry.clientId === input.client.id);
+        const open = mine.find((entry) => completion(entry.items).missing.length > 0) ?? mine[0];
+        const brief = await writeBrief({
+          submissionId: open?.id ?? `chat-${input.client.id}`,
+          language: input.language,
+          lineOfBusiness: input.line ?? open?.lines[0] ?? "unknown",
+          reason: toCoveyReason(input.reason),
+          question: input.originalMessage,
+          recentMessages: input.recentMessages ?? [],
+          intakeStatus: open ? intakeStatusFor(open.id, open.items) : null,
+          callbackPreference: null,
+        });
+        englishSummary += ` AI agent brief: ${brief.summary_en} Suggested next step: ${brief.next_action_en}`;
       } catch (error) {
-        console.error("AI handoff summary unavailable", error);
+        console.error("AI handoff brief unavailable", error);
         englishSummary +=
-          " The AI translation of the client's message was unavailable; see the original wording.";
+          " The AI brief of the client's message was unavailable; see the original wording.";
       }
     }
     const handoff = await insertHandoff({
@@ -176,6 +191,23 @@ export const HubProvider = ({ user, children }: HubProviderProps) => {
     setData((current) => ({ ...current, handoffs: upsertFirst(current.handoffs, handoff) }));
     return handoff;
   }, []);
+
+  /** One callback record per request: a double click or a retry within 30 seconds reuses the first. */
+  const createHandoff = useCallback(
+    (input: HandoffInput) => {
+      const key = `${input.client.id}|${input.reason}|${input.originalMessage}`;
+      const existing = handoffRequests.current.get(key);
+      if (existing) return existing;
+      const request = fileHandoff(input);
+      handoffRequests.current.set(key, request);
+      request.then(
+        () => setTimeout(() => handoffRequests.current.delete(key), 30_000),
+        () => handoffRequests.current.delete(key),
+      );
+      return request;
+    },
+    [fileHandoff],
+  );
 
   const sendReminder = useCallback(async (submissionId: string) => {
     const current = dataRef.current;
