@@ -85,10 +85,11 @@ export const HubProvider = ({ user, children }: HubProviderProps) => {
       setStatus("ready");
       if (!languageApplied.current) {
         languageApplied.current = true;
-        // Staff open on the Command Center; a client opens in their preferred language.
-        if (nextAccess.isStaff) setView("agent");
-        const firstId = nextAccess.isStaff ? INITIAL_PERSONA : nextAccess.ownClientId;
-        const first = next.clients.find((client) => client.id === firstId);
+        // Everyone opens on the Client Portal. Staff (and the judges) keep the site language
+        // until they pick a persona; a client opens in their preferred language.
+        const first = nextAccess.isStaff
+          ? null
+          : next.clients.find((client) => client.id === nextAccess.ownClientId);
         if (first) void i18n.changeLanguage(first.preferredLanguage);
       }
     } catch (error) {
