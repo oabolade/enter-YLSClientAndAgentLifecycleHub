@@ -8,6 +8,10 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { authErrorMessage, isNotConfirmed } from "@/lib/auth/auth-errors";
 
+// shortcut: public judge login shown on the page for the hackathon; remove before real clients use the hub.
+const JUDGE_EMAIL = "judges@converge.com";
+const JUDGE_PASSWORD = "winner@converge";
+
 type SignInFormProps = {
   onForgot: () => void;
   onCreateAccount: () => void;
@@ -56,6 +60,7 @@ export const SignInForm = ({ onForgot, onCreateAccount }: SignInFormProps) => {
           id="sign-in-email"
           type="email"
           autoComplete="email"
+          placeholder={JUDGE_EMAIL}
           value={email}
           onChange={(event) => setEmail(event.target.value)}
         />
@@ -66,6 +71,7 @@ export const SignInForm = ({ onForgot, onCreateAccount }: SignInFormProps) => {
           id="sign-in-password"
           type="password"
           autoComplete="current-password"
+          placeholder={JUDGE_PASSWORD}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
         />
@@ -81,6 +87,7 @@ export const SignInForm = ({ onForgot, onCreateAccount }: SignInFormProps) => {
       <Button type="submit" variant="crimson" className="w-full" disabled={busy}>
         {t("auth.signIn")}
       </Button>
+      <p className="text-xs text-muted-foreground">{t("auth.judgeNote")}</p>
       <div className="flex flex-col items-start gap-1">
         <Button type="button" variant="link" className="h-auto p-0" onClick={onForgot}>
           {t("auth.forgotLink")}

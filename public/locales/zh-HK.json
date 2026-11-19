@@ -22,6 +22,7 @@
   "auth.signUp": "建立帳戶",
   "auth.signOut": "登出",
   "auth.forgotLink": "唔記得密碼？",
+  "auth.judgeNote": "評審請注意：請用上面輸入框顯示嘅電郵同密碼登入。",
   "auth.toSignUp": "第一次用？建立帳戶",
   "auth.toSignIn": "已經有帳戶？請登入",
   "auth.backToSignIn": "返回登入",

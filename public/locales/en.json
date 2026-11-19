@@ -22,6 +22,7 @@
   "auth.signUp": "Create account",
   "auth.signOut": "Sign out",
   "auth.forgotLink": "Forgot password?",
+  "auth.judgeNote": "For judges: sign in with the email and password shown in the boxes above.",
   "auth.toSignUp": "New here? Create an account",
   "auth.toSignIn": "Already have an account? Sign in",
   "auth.backToSignIn": "Back to sign in",

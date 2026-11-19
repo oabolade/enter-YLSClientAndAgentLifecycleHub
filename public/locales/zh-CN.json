@@ -22,6 +22,7 @@
   "auth.signUp": "创建账户",
   "auth.signOut": "退出登录",
   "auth.forgotLink": "忘记密码？",
+  "auth.judgeNote": "评委请注意：请使用上方输入框中显示的邮箱和密码登录。",
   "auth.toSignUp": "第一次使用？创建账户",
   "auth.toSignIn": "已有账户？请登录",
   "auth.backToSignIn": "返回登录",
