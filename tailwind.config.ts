@@ -133,6 +133,24 @@ export default {
 				glow: {
 					'0%, 100%': { opacity: '0.35' },
 					'50%': { opacity: '0.7' }
+				},
+				'pop-in': {
+					from: { opacity: '0', transform: 'scale(0.95)' },
+					to: { opacity: '1', transform: 'scale(1)' }
+				},
+				// A highlight band sweeping down a document while the AI reads it.
+				scan: {
+					from: { transform: 'translateY(-100%)' },
+					to: { transform: 'translateY(300%)' }
+				},
+				// A new queue row: fades in on a soft highlight that settles back to the row's own colour.
+				'row-in': {
+					from: { opacity: '0', backgroundColor: 'hsl(var(--success-soft))' },
+					'15%': { opacity: '1', backgroundColor: 'hsl(var(--success-soft))' }
+				},
+				dot: {
+					'0%, 80%, 100%': { opacity: '0.25' },
+					'40%': { opacity: '1' }
 				}
 			},
 			animation: {
@@ -143,7 +161,11 @@ export default {
 				'hero-settle': 'hero-settle 1.4s cubic-bezier(0.22, 1, 0.36, 1) both',
 				'hero-drift': 'hero-drift 24s ease-in-out 1.4s infinite',
 				'line-grow': 'line-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both',
-				glow: 'glow 6s ease-in-out infinite'
+				glow: 'glow 6s ease-in-out infinite',
+				'pop-in': 'pop-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both',
+				scan: 'scan 1.4s linear infinite',
+				'row-in': 'row-in 2.4s ease-out backwards',
+				dot: 'dot 1.2s ease-in-out infinite backwards'
 			}
 		}
 	},

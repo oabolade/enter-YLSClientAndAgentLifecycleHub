@@ -42,7 +42,7 @@ export const AuthScreen = ({ recovering = false }: { recovering?: boolean }) => 
         <PortalHero title={t("hero.title")} body={t("hero.body")} className="w-full" />
         {/* Sign-in comes first on phones; on wide screens the video sits beside it. */}
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_28rem]">
-        <Card className="w-full animate-fade-up shadow-card lg:order-2">
+        <Card className="w-full shadow-card motion-safe:animate-fade-up lg:order-2">
           <CardHeader className="space-y-2">
             <CardTitle className="text-2xl">{title}</CardTitle>
             <p className="flex items-start gap-2 text-sm text-muted-foreground">

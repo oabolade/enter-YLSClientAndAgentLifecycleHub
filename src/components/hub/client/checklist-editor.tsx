@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, FileText, Loader2, UploadCloud, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, Sparkles, UploadCloud, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
-import { ProgressBar } from "@/components/hub/progress-bar";
+import { ProgressRing } from "@/components/hub/progress-ring";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,6 +75,8 @@ export const ChecklistEditor = ({
   const [verifying, setVerifying] = useState<{ key: string; name: string }[]>([]);
   const [unmatched, setUnmatched] = useState<UnmatchedFile[]>([]);
   const [dragging, setDragging] = useState(false);
+  /** The last upload the AI placed, shown as a result chip until the next upload. */
+  const [lastMatch, setLastMatch] = useState<{ key: string; id: DocId } | null>(null);
 
   const busy = verifying.length > 0;
   useEffect(() => {
@@ -133,8 +135,9 @@ export const ChecklistEditor = ({
           fileName: file.name,
           filePath: path,
           aiVerified: true,
-          aiNote: `AI intake review: readable and matches "${target.label}".`,
+          aiNote: `Readable and matches "${target.label}".`,
         });
+        setLastMatch({ key, id: target.item_id as DocId });
       } else {
         hold(hit?.status === "needs_review" ? "unreadable" : "unmatched");
       }
@@ -154,6 +157,7 @@ export const ChecklistEditor = ({
       else toast.error(t("intake.fileRejected", { file: file.name }));
     }
     if (queue.length === 0) return;
+    setLastMatch(null);
     setVerifying((prev) => [...prev, ...queue.map(({ key, file }) => ({ key, name: file.name }))]);
     // One at a time, so two files are never matched to the same checklist item.
     for (const entry of queue) {
@@ -189,21 +193,20 @@ export const ChecklistEditor = ({
 
   const progress = completion(items);
   const remainingFileItems = items.filter((entry) => entry.kind === "file" && !entry.received);
+  const matchShown =
+    lastMatch !== null && items.some((entry) => entry.id === lastMatch.id && entry.received);
 
   return (
     <div className="space-y-5">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-3 text-sm">
-          <span className="font-medium">
-            {t("intake.progress", { done: progress.done, total: progress.total })}
-          </span>
-          <span className="font-semibold tabular-nums">{progress.pct}%</span>
-        </div>
-        <ProgressBar value={progress.pct} tone={progress.missing.length ? "warning" : "success"} />
+      <div className="flex items-center gap-4">
+        <ProgressRing value={progress.pct} tone={progress.missing.length ? "warning" : "success"} />
+        <span className="text-sm font-medium">
+          {t("intake.progress", { done: progress.done, total: progress.total })}
+        </span>
       </div>
 
       <ul className="space-y-2">
-        {items.map((entry) => {
+        {items.map((entry, index) => {
           const flagged = !entry.received && !entry.optional;
           return (
             <li
@@ -216,7 +219,11 @@ export const ChecklistEditor = ({
             >
               <div className="flex items-start gap-3">
                 {entry.received ? (
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" aria-hidden />
+                  <CheckCircle2
+                    className="mt-0.5 h-5 w-5 shrink-0 text-success motion-safe:animate-pop-in"
+                    style={{ animationDelay: `${Math.min(index, 5) * 40}ms` }}
+                    aria-hidden
+                  />
                 ) : flagged ? (
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
                 ) : (
@@ -306,12 +313,48 @@ export const ChecklistEditor = ({
         }}
       />
 
-      {verifying.map((pending) => (
-        <p key={pending.key} className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-          <span className="truncate">{t("intake.verifying", { file: pending.name })}</span>
-        </p>
-      ))}
+      {/* Always rendered, so screen readers announce the check and its result. */}
+      <p role="status" className="sr-only">
+        {verifying.length
+          ? t("intake.aiChecking")
+          : matchShown
+            ? t("intake.aiMatched", { item: docLabel(t, lastMatch.id) })
+            : ""}
+      </p>
+      <div className="space-y-2 empty:hidden">
+        {verifying.map((pending) => (
+          <div
+            key={pending.key}
+            className="flex items-center gap-3 rounded-lg border border-primary/30 bg-secondary p-3 motion-safe:animate-pop-in"
+          >
+            <span className="relative flex h-11 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-card">
+              <FileText className="h-4 w-4 text-primary" aria-hidden />
+              <span
+                className="absolute inset-x-0 top-0 h-1/3 bg-gradient-to-b from-transparent via-primary/35 to-transparent motion-safe:animate-scan motion-reduce:hidden"
+                aria-hidden
+              />
+            </span>
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-sm font-semibold">
+                <Sparkles className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                {t("intake.aiChecking")}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">{pending.name}</p>
+            </div>
+          </div>
+        ))}
+        {matchShown ? (
+          <p
+            key={lastMatch.key}
+            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-success/40 bg-success-soft px-3 py-1 text-sm font-medium text-success motion-safe:animate-pop-in"
+          >
+            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate">
+              {t("intake.aiMatched", { item: docLabel(t, lastMatch.id) })}
+            </span>
+          </p>
+        ) : null}
+      </div>
 
       {unmatched.map((file) => (
         <div

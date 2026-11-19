@@ -140,7 +140,7 @@ const WizardForm = ({ resume, presetLine, onReset }: WizardFormProps) => {
 
   if (result) {
     return (
-      <Card className="animate-fade-up shadow-card">
+      <Card className="shadow-card motion-safe:animate-fade-up">
         <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
           {result.complete ? (
             <CheckCircle2 className="h-12 w-12 text-success" aria-hidden />
