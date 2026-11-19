@@ -267,9 +267,9 @@ export const ConciergeChat = () => {
           className="h-[380px] space-y-3 overflow-y-auto rounded-xl border bg-secondary/50 p-3 sm:p-4"
         >
           <Bubble role="assistant">{t("chat.reply.greeting")}</Bubble>
-          {chat.map((message) =>
+          {chat.map((message, index) =>
             message.role === "user" ? (
-              <Bubble key={message.id} role="user">
+              <Bubble key={message.id} role="user" animate={index === chat.length - 1}>
                 {message.chip
                   ? chips.find((chip) => chip.id === message.chip)?.label
                   : message.text}
@@ -279,6 +279,7 @@ export const ConciergeChat = () => {
                 key={message.id}
                 role="assistant"
                 highlight={message.reply.kind === "handoff"}
+                animate={index === chat.length - 1}
               >
                 <ReplyContent
                   reply={message.reply}
@@ -289,7 +290,7 @@ export const ConciergeChat = () => {
             ),
           )}
           {busy ? (
-            <Bubble role="assistant">
+            <Bubble role="assistant" animate>
               <span className="flex h-4 items-center gap-1" aria-hidden>
                 {[0, 150, 300].map((delay) => (
                   <span
@@ -358,14 +359,17 @@ export const ConciergeChat = () => {
 type BubbleProps = {
   role: "user" | "assistant";
   highlight?: boolean;
+  /** Only the newest bubble pops in; older ones would replay on every tab switch. */
+  animate?: boolean;
   children: React.ReactNode;
 };
 
-const Bubble = ({ role, highlight, children }: BubbleProps) => (
+const Bubble = ({ role, highlight, animate, children }: BubbleProps) => (
   <div className={cn("flex", role === "user" ? "justify-end" : "justify-start")}>
     <div
       className={cn(
-        "max-w-[88%] space-y-2 rounded-2xl px-4 py-2.5 text-sm motion-safe:animate-pop-in sm:max-w-[75%]",
+        "max-w-[88%] space-y-2 rounded-2xl px-4 py-2.5 text-sm sm:max-w-[75%]",
+        animate && "motion-safe:animate-pop-in",
         role === "user"
           ? "origin-bottom-right rounded-br-sm bg-primary text-primary-foreground"
           : "origin-bottom-left rounded-bl-sm border bg-card",

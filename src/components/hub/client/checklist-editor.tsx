@@ -193,6 +193,8 @@ export const ChecklistEditor = ({
 
   const progress = completion(items);
   const remainingFileItems = items.filter((entry) => entry.kind === "file" && !entry.received);
+  const matchShown =
+    lastMatch !== null && items.some((entry) => entry.id === lastMatch.id && entry.received);
 
   return (
     <div className="space-y-5">
@@ -311,7 +313,15 @@ export const ChecklistEditor = ({
         }}
       />
 
-      <div role="status" aria-live="polite" className="space-y-2 empty:hidden">
+      {/* Always rendered, so screen readers announce the check and its result. */}
+      <p role="status" className="sr-only">
+        {verifying.length
+          ? t("intake.aiChecking")
+          : matchShown
+            ? t("intake.aiMatched", { item: docLabel(t, lastMatch.id) })
+            : ""}
+      </p>
+      <div className="space-y-2 empty:hidden">
         {verifying.map((pending) => (
           <div
             key={pending.key}
@@ -333,7 +343,7 @@ export const ChecklistEditor = ({
             </div>
           </div>
         ))}
-        {lastMatch && items.some((entry) => entry.id === lastMatch.id && entry.received) ? (
+        {matchShown ? (
           <p
             key={lastMatch.key}
             className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-success/40 bg-success-soft px-3 py-1 text-sm font-medium text-success motion-safe:animate-pop-in"

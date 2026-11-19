@@ -165,7 +165,7 @@ export default {
 				'pop-in': 'pop-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both',
 				scan: 'scan 1.4s linear infinite',
 				'row-in': 'row-in 2.4s ease-out backwards',
-				dot: 'dot 1.2s ease-in-out infinite'
+				dot: 'dot 1.2s ease-in-out infinite backwards'
 			}
 		}
 	},

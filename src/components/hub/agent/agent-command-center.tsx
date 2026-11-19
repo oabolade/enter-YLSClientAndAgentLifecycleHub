@@ -85,8 +85,10 @@ const hasAiBrief = (handoff: Handoff) => handoff.englishSummary.includes("AI age
 
 /** Counts up to a KPI value (from its last shown value) so a change is noticed. */
 const CountUp = ({ value }: { value: number }) => {
-  const [shown, setShown] = useState(0);
-  const shownRef = useRef(0);
+  const [shown, setShown] = useState(() =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches ? value : 0,
+  );
+  const shownRef = useRef(shown);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       shownRef.current = value;
