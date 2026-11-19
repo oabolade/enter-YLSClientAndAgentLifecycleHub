@@ -1,13 +1,30 @@
 // Contract tests for the three Covey agents' pure logic, using the handoff.txt fixtures.
-// Run with: node --test "tests/**/*.test.ts"   (Node 25 does not accept a bare directory)
+// Run from the repo root with: node --test "tests/**/*.test.ts"   (Node 25 does not accept a bare directory)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import * as intake from "../supabase/functions/yls-document-check/covey.ts";
-import * as triage from "../supabase/functions/yls-triage/covey.ts";
-import * as brief from "../supabase/functions/yls-handoff-brief/covey.ts";
-import type { DocumentCheckRequest } from "../supabase/functions/yls-document-check/covey.ts";
-import type { TriageRequest } from "../supabase/functions/yls-triage/covey.ts";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+// Each function is one deployable file: pure logic first, then the Deno handler after this marker.
+const HANDLER_MARKER = "// ===== HTTP handler";
+const scratch = mkdtempSync(join(tmpdir(), "yls-covey-"));
+const load = async (name: string) => {
+  const source = readFileSync(`supabase/functions/${name}/index.ts`, "utf8");
+  const pure = source.slice(0, source.indexOf(HANDLER_MARKER));
+  assert.ok(pure.length > 0 && pure.includes("export function"), `${name}: marker not found`);
+  const file = join(scratch, `${name}.ts`);
+  writeFileSync(file, pure);
+  return import(pathToFileURL(file).href);
+};
+
+const intake = await load("yls-document-check");
+const triage = await load("yls-triage");
+const brief = await load("yls-handoff-brief");
+type DocumentCheckRequest = ReturnType<typeof intake.validateDocumentCheckRequest>;
+type TriageRequest = ReturnType<typeof triage.validateTriageRequest>;
 
 const checklist = [
   {
